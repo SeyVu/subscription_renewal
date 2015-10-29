@@ -11,6 +11,7 @@ from sklearn.cross_validation import KFold
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier as RandomForest
 from sklearn.neighbors import KNeighborsClassifier as KNearestNeighbors
+from sklearn import linear_model
 from sklearn.metrics import precision_recall_fscore_support
 
 import pandas as pd
@@ -91,23 +92,31 @@ def baseline_models():
     print "%.3f" % accuracy(y, run_cv(x, y, RandomForest))
     print "K-nearest-neighbors:"
     print "%.3f" % accuracy(y, run_cv(x, y, KNearestNeighbors))
+    print "Logistic regression:"
+    print "%.3f" % accuracy(y, run_cv(x, y, linear_model.LogisticRegression))
 
     # Precision / Recall
     y = np.array(y)
-
-    prec_recall = precision_recall_fscore_support(y, run_cv(x, y, RandomForest), beta=1.0, average='binary')
-
-    logger.debug("RandomForest Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0], prec_recall[1],
-                 prec_recall[2])
 
     prec_recall = precision_recall_fscore_support(y, run_cv(x, y, SVC), beta=1.0, average='binary')
 
     logger.debug("SupportVectorMachine Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0], prec_recall[1],
                  prec_recall[2])
 
+    prec_recall = precision_recall_fscore_support(y, run_cv(x, y, RandomForest), beta=1.0, average='binary')
+
+    logger.debug("RandomForest Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0], prec_recall[1],
+                 prec_recall[2])
+
     prec_recall = precision_recall_fscore_support(y, run_cv(x, y, KNearestNeighbors), beta=1.0, average='binary')
 
     logger.debug("KNearestNeighbors Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0], prec_recall[1],
+                 prec_recall[2])
+
+    prec_recall = precision_recall_fscore_support(y, run_cv(x, y, linear_model.LogisticRegression), beta=1.0,
+                                                  average='binary')
+
+    logger.debug("LogRegression Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0], prec_recall[1],
                  prec_recall[2])
 
 
