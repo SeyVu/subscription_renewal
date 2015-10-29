@@ -42,7 +42,7 @@ class PreProcess:
         pass
 
 
-def churn_model():
+def baseline_models():
     print "Importing data"
     churn_df = pd.read_csv('data/train_data.csv', sep=', ')
 
@@ -154,4 +154,4 @@ def accuracy(y_true, y_pred):
 
 if __name__ == "__main__":
 
-    churn_model()
+    baseline_models()
