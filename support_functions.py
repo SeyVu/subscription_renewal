@@ -3,6 +3,7 @@
 #
 #########################################################################################################
 import numpy as np
+import random
 
 #########################################################################################################
 __author__ = 'DataCentric1'
@@ -48,3 +49,8 @@ def save_npy_array_to_csv(npy_fname, csv_fname):
     f.close()
 
     return __pass__
+
+
+# Returns random floating point value within the range specified
+def random_float(low, high):
+    return random.random()*(high-low) + low
