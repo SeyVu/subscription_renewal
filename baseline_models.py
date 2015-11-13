@@ -20,7 +20,6 @@ import os
 
 import logging
 import logging.config
-# import support_functions as sf
 
 #########################################################################################################
 # Global variables
@@ -43,9 +42,28 @@ class PreProcess:
         pass
 
 
-def baseline_models():
+def baseline_models(use_synthetic_data=False):
     print "Importing data"
-    churn_df = pd.read_csv('data/train_data.csv', sep=', ')
+
+    if use_synthetic_data:
+        if os.path.isfile('data/data_synthetic.csv'):
+            churn_df = pd.read_csv('data/data_synthetic.csv', sep=',')
+        else:
+            raise ValueError("Synthetic data not available")
+        # split rows for working on partial data
+        start_row = 0
+        end_row = 9999
+    else:
+        churn_df = pd.read_csv('data/train_data.csv', sep=', ')
+        # split rows for working on partial data
+        start_row = 0
+        end_row = 4999
+
+    churn_df = churn_df.iloc[start_row:end_row].copy()
+
+    churn_df = churn_df.reset_index()
+
+    print churn_df
 
     col_names = churn_df.columns.tolist()
 
@@ -63,20 +81,21 @@ def baseline_models():
 
     logger.debug(y)
 
-    # We don't need these columns
-    to_drop = ['Area Code', 'Phone', 'Churn?']
+    # We don't need these columns. Index is created only when do a partial split
+    if 'index' in col_names:
+        to_drop = ['index', 'Area Code', 'Phone', 'Churn?']
+    else:
+        to_drop = ['Area Code', 'Phone', 'Churn?']
 
     churn_feat_space = churn_df.drop(to_drop, axis=1)
 
     # 'yes'/'no' has to be converted to boolean values
     # NumPy converts these from boolean to 1. and 0. later
-
     yes_no_cols = ["Int'l Plan", "VMail Plan"]
 
     churn_feat_space[yes_no_cols] = (churn_feat_space[yes_no_cols] == 'yes')
 
     # Below segment replaces column 'State' with a number for each state (alphabetically sorted)
-
     # separate state into it's own df as it's easier to operate on later
     churn_feat_state = churn_feat_space[['State']]
 
@@ -87,17 +106,19 @@ def baseline_models():
 
     churn_feat_space['State'] = churn_feat_state
 
+    logger.debug(churn_feat_space['State'])
+
     feature_names = churn_feat_space.columns.tolist()
 
-    print feature_names
+    logger.debug(feature_names)
 
     x = churn_feat_space.as_matrix().astype(np.float)
 
-    # This is important
+    # Feature scaling and normalization
     # scaler = StandardScaler()
     # x = scaler.fit_transform(x)
 
-    print x
+    logger.debug(x)
 
     print "Feature space holds %d observations and %d features" % x.shape
     print "Unique target labels:", np.unique(y)
@@ -130,7 +151,7 @@ def baseline_models():
 
     print "\nOptimized model\n"
 
-    prec_recall = precision_recall_fscore_support(y, run_cv(x, y, RandomForest, n_estimators=100, verbose=0,
+    prec_recall = precision_recall_fscore_support(y, run_cv(x, y, RandomForest, n_estimators=200, verbose=0,
                                                             criterion='gini', warm_start='False', n_jobs=-1,
                                                             max_features=5), beta=beta, average='binary')
 
@@ -139,10 +160,10 @@ def baseline_models():
 
     # Compare probability predictions of algo
 
-    print "\nPrediction probabilities\n"
-
-    compare_prob_predictions(x, y, RandomForest, n_estimators=10, verbose=0, criterion='gini', warm_start='False',
-                             n_jobs=-1, max_features=5)
+    # print "\nPrediction probabilities\n"
+    #
+    # compare_prob_predictions(x, y, RandomForest, n_estimators=10, verbose=0, criterion='gini', warm_start='False',
+    #                          n_jobs=-1, max_features=5)
 
     # prec_recall = precision_recall_fscore_support(y, run_cv(x, y, KNearestNeighbors), beta=beta, average='binary')
     #
@@ -264,4 +285,4 @@ def accuracy(y_true, y_pred):
 
 
 if __name__ == "__main__":
-    baseline_models()
+    baseline_models(use_synthetic_data=True)
