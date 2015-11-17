@@ -13,10 +13,12 @@ from sklearn.ensemble import RandomForestClassifier as RandomForest
 # from sklearn.neighbors import KNeighborsClassifier as KNearestNeighbors
 # from sklearn import linear_model
 from sklearn.metrics import precision_recall_fscore_support
+from sklearn.cross_validation import train_test_split
 
 import pandas as pd
 import numpy as np
 import os
+import time
 
 import logging
 import logging.config
@@ -103,7 +105,7 @@ def telecom_churn(use_synthetic_data=False):
 
     churn_feat_space['State'] = churn_feat_state
 
-    logger.debug(churn_feat_space['State'])
+    # logger.debug(churn_feat_space['State'])
 
     feature_names = churn_feat_space.columns.tolist()
 
@@ -123,37 +125,59 @@ def telecom_churn(use_synthetic_data=False):
     # Run random forest
 
     # Predict accuracy
-    print "Random forest:"
+    print "\nRandom forest k-fold CV:"
+
     # Baseline model
     print "\nBaseline model\n"
-    print "%.3f" % accuracy(y, run_cv(x, y, RandomForest))
+
+    mean_correct_positive_prediction = 0
+    num_iterations = 1
+    for _ in range(num_iterations):
+        print "%.3f" % accuracy(y, run_cv(x, y, RandomForest))
+
+    mean_correct_positive_prediction += correct_positive_prediction
+
+    mean_correct_positive_prediction /= num_iterations
+
+    print "mean_correct_positive_prediction ", mean_correct_positive_prediction
 
     # Optimized model
-    print "\nOptimized model\n"
-    print "%.3f" % accuracy(y, run_cv(x, y, RandomForest, n_estimators=100, verbose=0,
-                                      criterion='gini', warm_start="False", n_jobs=-1,
-                                      max_features=5))
+    print "\nOptimized model k-fold CV\n"
+
+    mean_correct_positive_prediction = 0
+    num_iterations = 1
+    for _ in range(num_iterations):
+
+        print "%.3f" % accuracy(y, run_cv(x, y, RandomForest, n_estimators=400, verbose=0,
+                                          criterion='gini', warm_start="False", n_jobs=-1,
+                                          max_features=5))
+
+    mean_correct_positive_prediction += correct_positive_prediction
+
+    mean_correct_positive_prediction /= num_iterations
+
+    print "mean_correct_positive_prediction ", mean_correct_positive_prediction, "\n"
 
     # Precision / Recall
     y = np.array(y)
 
     beta = 2.0  # higher beta prioritizes recall more than precision, default is 1
 
-    print "\nBasline model\n"
+    print "\nBasline model k-fold CV\n"
     prec_recall = precision_recall_fscore_support(y, run_cv(x, y, RandomForest), beta=beta, average='binary')
 
-    logger.debug("\nBaseline model Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
+    logger.debug("\nBaseline model k-fold CV Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
                  prec_recall[1], prec_recall[2])
 
-    print "\nOptimized model\n"
+    print "\nOptimized model k-fold CV\n"
 
-    prec_recall = precision_recall_fscore_support(y, run_cv(x, y, RandomForest, n_estimators=100, verbose=0,
+    prec_recall = precision_recall_fscore_support(y, run_cv(x, y, RandomForest, n_estimators=400, verbose=0,
                                                             criterion='gini', warm_start="False", n_jobs=-1,
                                                             max_features=5), beta=beta,
                                                   average='binary')
 
-    logger.debug("\nOptimized model Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0], prec_recall[1],
-                 prec_recall[2])
+    logger.debug("\nOptimized model k-fold CV Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
+                 prec_recall[1], prec_recall[2])
 
     # Compare probability predictions of algo
 
@@ -186,6 +210,53 @@ def telecom_churn(use_synthetic_data=False):
     #
     # logger.debug("\nLogRegression Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0], prec_recall[1],
     #              prec_recall[2])
+
+    # Test data
+
+    # Create train / test split
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+
+    x_train = np.array(x_train)
+    x_test = np.array(x_test)
+    y_train = np.array(y_train)
+    y_test = np.array(y_test)
+
+    # Use Random forest
+    print "\nRandom forest Test:"
+
+    print "\nOptimized model\n"
+    mean_correct_positive_prediction = 0
+    num_iterations = 1
+    for _ in range(num_iterations):
+        print "%.3f" % accuracy(y_test, run_test(x_train, y_train, x_test, RandomForest, n_estimators=400, verbose=0,
+                                                 criterion='gini', warm_start='False', n_jobs=-1,
+                                                 max_features=5))
+        mean_correct_positive_prediction += correct_positive_prediction
+
+    mean_correct_positive_prediction /= num_iterations
+
+    print "mean_correct_positive_prediction ", mean_correct_positive_prediction, "\n"
+
+    # Precision / Recall
+    beta = 2.0  # higher beta prioritizes recall more than precision, default is 1
+
+    # print "\nBasline model\n"
+    prec_recall = precision_recall_fscore_support(y_test, run_test(x_train, y_train, x_test, RandomForest), beta=beta,
+                                                  average='binary')
+
+    logger.debug("\nBaseline model Test - Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
+                 prec_recall[1], prec_recall[2])
+
+    # print "\nOptimized model\n"
+
+    prec_recall = precision_recall_fscore_support(y_test,
+                                                  run_test(x_train, y_train, x_test, RandomForest, n_estimators=400,
+                                                           verbose=0, criterion='gini',
+                                                           warm_start='False', n_jobs=-1,
+                                                           max_features=5), beta=beta, average='binary')
+
+    logger.debug("\nOptimized model Test - Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
+                 prec_recall[1], prec_recall[2])
 
 
 def kids_churn(use_synthetic_data=True):
@@ -229,14 +300,13 @@ def kids_churn(use_synthetic_data=True):
 
     logger.debug(x)
 
-    print "##########\n"
-
     print "Feature space holds %d observations and %d features" % x.shape
     print "Unique target labels:", np.unique(y)
 
+    # k-fold cross-validation
+
     # Use Random forest
-    # Predict accuracy
-    print "Random forest:"
+    print "Random forest k-fold CV:"
     mean_correct_positive_prediction = 0
     num_iterations = 1
     for _ in range(num_iterations):
@@ -257,17 +327,17 @@ def kids_churn(use_synthetic_data=True):
     # print "\nBasline model\n"
     prec_recall = precision_recall_fscore_support(y, run_cv(x, y, RandomForest), beta=beta, average='binary')
 
-    logger.debug("\nBaseline model Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
+    logger.debug("\nBaseline model k-fold CV Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
                  prec_recall[1], prec_recall[2])
 
     # print "\nOptimized model\n"
 
     prec_recall = precision_recall_fscore_support(y, run_cv(x, y, RandomForest, n_estimators=200, verbose=0,
-                                                            criterion='gini', warm_start='False', n_jobs=-1,
-                                                            max_features=5), beta=beta, average='binary')
+                                                            criterion='entropy', warm_start='False', n_jobs=-1,
+                                                            max_features=6), beta=beta, average='binary')
 
-    logger.debug("\nOptimized model Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0], prec_recall[1],
-                 prec_recall[2])
+    logger.debug("\nOptimized model k-fold CV Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
+                 prec_recall[1], prec_recall[2])
 
     # Other models
 
@@ -293,6 +363,45 @@ def kids_churn(use_synthetic_data=True):
     #
     # logger.debug("LogRegression Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0], prec_recall[1],
     #              prec_recall[2])
+
+    # Test data
+
+    # Create train / test split
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+
+    # Use Random forest
+    print "Random forest Test:"
+    mean_correct_positive_prediction = 0
+    num_iterations = 1
+    for _ in range(num_iterations):
+        print "%.3f" % accuracy(y_test, run_test(x_train, y_train, x_test, RandomForest, n_estimators=100, verbose=0,
+                                                 criterion='gini', warm_start='True', n_jobs=-1,
+                                                 max_features=6))
+        mean_correct_positive_prediction += correct_positive_prediction
+
+    mean_correct_positive_prediction /= num_iterations
+
+    print "mean_correct_positive_prediction ", mean_correct_positive_prediction
+
+    # Precision / Recall
+    beta = 2.0  # higher beta prioritizes recall more than precision, default is 1
+
+    # print "\nBasline model\n"
+    prec_recall = precision_recall_fscore_support(y_test, run_test(x_train, y_train, x_test, RandomForest), beta=beta,
+                                                  average='binary')
+
+    logger.debug("\nBaseline model Test - Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
+                 prec_recall[1], prec_recall[2])
+
+    # print "\nOptimized model\n"
+
+    prec_recall = precision_recall_fscore_support(y_test,
+                                                  run_test(x_train, y_train, x_test, RandomForest, n_estimators=200,
+                                                           verbose=0, criterion='gini', warm_start="False", n_jobs=-1,
+                                                           max_features=6), beta=beta, average='binary')
+
+    logger.debug("\nOptimized model Test - Precision %0.3f Recall %0.3f Fbeta-score %0.3f", prec_recall[0],
+                 prec_recall[1], prec_recall[2])
 
 
 def accuracy(y_true, y_pred):
@@ -339,15 +448,41 @@ def run_cv(x, y, clf_class, **kwargs):
 
     # Iterate through folds
     for train_index, test_index in kf:
+        # print"Index"
+        # print train_index, test_index
+        # print np.shape(train_index), np.shape(test_index)
+
         x_train, x_test = x[train_index], x[test_index]
         y_train = y[train_index]
 
-        if train_index[0]:
-            print clf
+        # if train_index[0]:
+        #     print clf
 
         clf.fit(x_train, y_train)
 
         y_pred[test_index] = clf.predict(x_test)
+
+    if hasattr(clf, "feature_importances_"):
+        print "\nFeature importance\n"
+        # Print importance of the input features and probability for each prediction
+        logger.info(clf.feature_importances_)
+
+    # logger.info(clf.estimators_)
+
+    return y_pred
+
+
+# Test on different dataset. Classify users into if they'll churn or no
+def run_test(x_train, y_train, x_test, clf_class, **kwargs):
+
+    # Initialize a classifier with key word arguments
+    clf = clf_class(**kwargs)
+
+    time.sleep(1)  # sleep time in seconds
+
+    clf.fit(x_train, y_train)
+
+    y_pred = clf.predict(x_test)
 
     if hasattr(clf, "feature_importances_"):
         print "\nFeature importance\n"
@@ -423,5 +558,5 @@ def compare_prob_predictions(x, y, clf_class, **kwargs):
 
 
 if __name__ == "__main__":
-    telecom_churn(use_synthetic_data=False)
+    telecom_churn(use_synthetic_data=True)
     # kids_churn()
