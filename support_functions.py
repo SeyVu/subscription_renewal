@@ -11,6 +11,23 @@ __pass__ = 1
 __fail__ = 0
 
 
+# Class to specify color and text formatting for prints
+class Color:
+    def __init__(self):
+        pass
+
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+    DARKCYAN = '\033[36m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    END = '\033[0m'
+
+
 #  Returns number of lines in a file in a memory / time efficient way
 def file_len(fname):
     i = -1
@@ -28,7 +45,7 @@ def save_npy_array_to_txt(npy_fname, txt_fname):
     return __pass__
 
 
-#  Save numpy array from .npy file to csv file. TODO - Doublce check fn
+#  Save numpy array from .npy file to csv file. TODO - Double check fn
 def save_npy_array_to_csv(npy_fname, csv_fname):
 
     temp_array = np.load(npy_fname)
