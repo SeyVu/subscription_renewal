@@ -12,13 +12,14 @@ from sklearn.ensemble import RandomForestClassifier as RandomForest
 # from sklearn.svm import SVC  # Support vector machines
 # from sklearn.neighbors import KNeighborsClassifier as KNearestNeighbors
 # from sklearn import linear_model
+# from sknn.mlp import Classifier, Layer
 
 # sklearn Toolkit
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn import cross_validation
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
-# from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler
 
 import pandas as pd
 import numpy as np
@@ -44,7 +45,7 @@ logging.config.fileConfig('logging.conf')
 logger = logging.getLogger("info")
 
 
-def telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False,
+def telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
                   clf_class=RandomForest, **kwargs):
     logger.debug("Importing data")
     if use_synthetic_data:
@@ -114,9 +115,10 @@ def telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learnin
 
     x = churn_feat_space.as_matrix().astype(np.float)
 
-    # Uncomment for Feature scaling and normalization
-    # scaler = StandardScaler()
-    # x = scaler.fit_transform(x)
+    if feature_scaling:
+        # Feature scaling and normalization
+        scaler = StandardScaler()
+        x = scaler.fit_transform(x)
 
     logger.debug(x)
 
@@ -137,7 +139,7 @@ def telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learnin
     return None
 
 
-def kids_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False,
+def kids_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
                clf_class=RandomForest, **kwargs):
     logger.info("Importing data")
     if use_synthetic_data:
@@ -173,9 +175,10 @@ def kids_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_c
 
     x = churn_feat_space.as_matrix().astype(np.float)
 
-    # Feature scaling and normalization
-    # scaler = StandardScaler()
-    # x = scaler.fit_transform(x)
+    if feature_scaling:
+        # Feature scaling and normalization
+        scaler = StandardScaler()
+        x = scaler.fit_transform(x)
 
     logger.debug(x)
 
@@ -232,7 +235,13 @@ def run_model(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_lea
 
         modeling_tools.plot_learning_curve(clf_class(**kwargs), title, x, y, cv=cv, n_jobs=-1)
 
-        plt.show()
+        if not os.path.isdir("temp_pyplot_images_dont_commit"):
+            # Create dir if it doesn't exist. Do not commit this directory or contents.
+            # It's a temp store for pyplot images
+            os.mkdir("temp_pyplot_images_dont_commit")
+
+        # plt.show()
+        plt.savefig("temp_pyplot_images_dont_commit/learning_curve.png")
 
     # Predict accuracy (mean of num_iterations)
     logger.info("k-fold CV:")
@@ -503,14 +512,25 @@ def compare_prob_predictions(x, y, clf_class, **kwargs):
 ##################################################################################################################
 
 if __name__ == "__main__":
-    estimator = RandomForest
-    # estimator_keywords = dict()
+    # Random Forest
 
+    estimator = RandomForest
     # Below keywords valid only for RF, all other models need own arguments or use empty dict for defaults
-    estimator_keywords = dict(n_estimators=100, verbose=0, criterion='entropy', warm_start='False', n_jobs=-1,
+    estimator_keywords = dict(n_estimators=1000, verbose=0, criterion='entropy', warm_start='False', n_jobs=-1,
                               max_features=5)
+
+    # Neural network
+
+    # estimator = Classifier
+    # estimator_keywords = dict()
+    # estimator_keywords = dict(layers=[Layer("Rectifier", units=50), Layer("Softmax")],
+    #                          learning_rate=0.001, n_iter=10)
 
     # Pep8 shows a warning for all other estimators other than RF (probably because RF is the default class in
     # telecom / kids churn. This is not a valid warning and has been validated
-    telecom_churn(use_synthetic_data=False, num_model_iterations=1, clf_class=estimator, **estimator_keywords)
-    # kids_churn(use_synthetic_data=True, clf_class=estimator, **estimator_keywords)
+
+    telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=True, feature_scaling=True,
+                  clf_class=estimator, **estimator_keywords)
+
+    # kids_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=True, feature_scaling=True,
+    #            clf_class=estimator, **estimator_keywords)
