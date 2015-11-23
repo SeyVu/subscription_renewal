@@ -228,7 +228,7 @@ def run_model(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_lea
 
     # Plot learning curve only for cv
     if not cv_0_test_1 and plot_learning_curve:
-        title = "Learning Curves - telecom Churn"
+        title = "Learning Curves"
         # Cross validation with 100 iterations to get smoother mean test and train
         # score curves, each time with 20% data randomly selected as a validation set.
         cv = cross_validation.ShuffleSplit(x.shape[0], n_iter=100, test_size=0.2, random_state=0)
