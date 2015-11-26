@@ -5,11 +5,10 @@
 #  2. Purchases statistics
 #
 #########################################################################################################
-from __future__ import division
 
 # Imports for various models (Turn on as needed)
-# from sklearn.linear_model import LinearRegression as LinearReg
 from sklearn.ensemble import RandomForestRegressor as RandomForestReg
+# from sklearn.linear_model import LinearRegression as LinearReg
 
 # sklearn Toolkit
 from sklearn import cross_validation
@@ -40,10 +39,11 @@ logging.config.fileConfig('logging.conf')
 
 logger = logging.getLogger("debug")
 
+
 #########################################################################################################
 
 
-def nfl_pred(num_model_iterations=1, plot_learning_curve=False, feature_scaling=False,
+def nfl_pred(num_model_iterations=1, test_size=0.2, plot_learning_curve=False, feature_scaling=False,
              clf_class=RandomForestReg, **kwargs):
     if os.path.isfile('data/nfl_pred/nfl_pred_inputX.npy'):
         x = np.load('data/nfl_pred/nfl_pred_inputX.npy')
@@ -85,25 +85,35 @@ def nfl_pred(num_model_iterations=1, plot_learning_curve=False, feature_scaling=
     logger.info("Unique target labels:")
     logger.info(np.unique(y))
 
-    # Run model on cross-validation data
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Cross-Validation" + sf.Color.END)
-    run_model_regression(cv_0_test_1=0, x=x, y=y, num_model_iterations=num_model_iterations,
-                         plot_learning_curve=plot_learning_curve, clf_class=clf_class, **kwargs)
-    # Run model on test data
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunnning Test" + sf.Color.END)
-    run_model_regression(cv_0_test_1=1, x=x, y=y, num_model_iterations=num_model_iterations,
+    # Create train / test split only for test
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=42)
+
+    x_train = np.array(x_train)
+    x_test = np.array(x_test)
+    y_train = np.array(y_train)
+    y_test = np.array(y_test)
+
+    # Run model on cross-validation data and predict test data on trained model
+    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Cross-Validation / Test" + sf.Color.END)
+    run_model_regression(run_test_only=0, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
+                         num_model_iterations=num_model_iterations, plot_learning_curve=plot_learning_curve,
+                         clf_class=clf_class, **kwargs)
+    # Train model and predict on test data
+    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunnning only Test" + sf.Color.END)
+    run_model_regression(run_test_only=1, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
+                         num_model_iterations=num_model_iterations, plot_learning_curve=plot_learning_curve,
                          clf_class=clf_class, **kwargs)
 
     return None
 
 
-def run_model_regression(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_learning_curve=False,
-                         clf_class=RandomForestReg, **kwargs):
-    # # @brief: For cross-validation, Runs the model and gives accuracy and precision / recall
-    # #         For test, runs the model and gives accuracy and precision / recall by treating
-    # #         a random sample of input data as test data
-    # # @param: x - Input features (numpy array)
-    # #         y - expected output (numpy array)
+def run_model_regression(run_test_only, x_train, y_train, x_test, y_test, num_model_iterations=1,
+                         plot_learning_curve=False, clf_class=RandomForestReg, **kwargs):
+    # # @brief: For cross-validation, Runs the model and gives rmse / mse. Also, will run the trained model
+    # #         on test data if run_test_only is set
+    # #         For test, trains the model on train data and predicts rmse / mse for test data
+    # # @param: x_train, x_test - Input features (numpy array)
+    # #         y_train, y_test - expected output (numpy array)
     # #         plot_learning_curve (only for cv) - bool
     # #         num_model_iterations - Times to run the model (to average the results)
     # #         test_size (only for test) - % of data that should be treated as test (in decimal)
@@ -112,25 +122,15 @@ def run_model_regression(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.
     # #         **kwargs  - Model inputs, refer sklearn documentation for your model to see available parameters
     # # @return: None
 
-    # Create train / test split only for test
-    if cv_0_test_1:
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=42)
-
-        x_train = np.array(x_train)
-        x_test = np.array(x_test)
-        y_train = np.array(y_train)
-        y_test = np.array(y_test)
-    else:
-        x_train, x_test, y_train, y_test = 0, 0, 0, 0
-
     # Plot learning curve only for cv
-    if not cv_0_test_1 and plot_learning_curve:
+    if not run_test_only and plot_learning_curve:
         title = "Learning Curves for regression"
+        # Train data further split into train and CV
         # Cross validation with 100 iterations to get smoother mean test and train
         # score curves, each time with 20% data randomly selected as a validation set.
-        cv = cross_validation.ShuffleSplit(x.shape[0], n_iter=100, test_size=0.2, random_state=0)
+        cv = cross_validation.ShuffleSplit(x_train.shape[0], n_iter=100, test_size=0.2, random_state=0)
 
-        modeling_tools.plot_learning_curve(clf_class(**kwargs), title, x, y, cv=cv, n_jobs=-1)
+        modeling_tools.plot_learning_curve(clf_class(**kwargs), title, x_train, y_train, cv=cv, n_jobs=-1)
 
         if not os.path.isdir("temp_pyplot_regr_dont_commit"):
             # Create dir if it doesn't exist. Do not commit this directory or contents.
@@ -144,69 +144,95 @@ def run_model_regression(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.
     logger.info("k-fold CV:")
 
     # Error metrics - mean-squared error and root mse
-    rmse = 0.0
-    mse = 0.0
+    rmse_cv = rmse_test = 0.0
+    mse_cv = mse_test = 0.0
 
     for _ in range(num_model_iterations):
-        if cv_0_test_1:  # test
-            y_pred = run_test(x_train, y_train, x_test, clf_class, **kwargs)
+        if run_test_only:  # test
+            y_pred_test = run_test(x_train, y_train, x_test, clf_class, **kwargs)
             # calculate root mean squared error
-            rmse += ((np.mean((y_pred - y_test) ** 2)) ** 0.5)
-            mse += np.mean((y_pred - y_test) ** 2)
+            # Pep8 warning not valid
+            rmse_test += ((np.mean((y_pred_test - y_test) ** 2)) ** 0.5)
+            mse_test += np.mean((y_pred_test - y_test) ** 2)
 
+            # Print first 10 actual and predicted values for test
             logger.debug(y_test[0:10])
-            logger.debug(y_pred[0:10])
+            logger.debug(sf.format_float_0_2f(y_pred_test[0:10]))
 
             logger.debug(np.mean(y_test))
-            logger.debug(np.mean(y_pred))
+            logger.debug(np.mean(y_pred_test))
 
         else:  # cv
-            y_pred = run_cv(x, y, clf_class, **kwargs)
+            y_pred_cv, y_pred_test = run_cv(x_train, y_train, x_test, clf_class, **kwargs)
             # Pep8 warning not valid
-            rmse += ((np.mean((y_pred - y) ** 2)) ** 0.5)
-            mse += np.mean((y_pred - y) ** 2)
+            rmse_cv += ((np.mean((y_pred_cv - y_train) ** 2)) ** 0.5)
+            mse_cv += np.mean((y_pred_cv - y_train) ** 2)
 
-            logger.debug(y[0:10])
-            logger.debug(y_pred[0:10])
+            # Pep8 warning not valid
+            rmse_test += ((np.mean((y_pred_test - y_test) ** 2)) ** 0.5)
+            mse_test += np.mean((y_pred_test - y_test) ** 2)
 
-            logger.debug(np.mean(y))
-            logger.debug(np.mean(y_pred))
+            # Print first 10 actual and predicted values for cv
+            logger.debug(y_train[0:10])
+            logger.debug(sf.format_float_0_2f(y_pred_cv[0:10]))
 
-    rmse /= num_model_iterations
-    mse /= num_model_iterations
+            logger.debug(np.mean(y_train))
+            logger.debug(np.mean(y_pred_cv))
 
-    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nRoot Mean squared error {:.2f} Mean squared error {:.2f}".format(
-        rmse, mse) + sf.Color.END)
+            # Print first 10 actual and predicted values for test
+            logger.debug(y_test[0:10])
+            logger.debug(sf.format_float_0_2f(y_pred_test[0:10]))
+
+            logger.debug(np.mean(y_test))
+            logger.debug(np.mean(y_pred_test))
+
+    if not run_test_only:
+        rmse_cv /= num_model_iterations
+        mse_cv /= num_model_iterations
+
+        logger.info(sf.Color.BOLD + sf.Color.DARKCYAN +
+                    "\nCV Root Mean squared error {:.2f} Mean squared error {:.2f}".format(rmse_cv,
+                                                                                           mse_cv) + sf.Color.END)
+
+    rmse_test /= num_model_iterations
+    mse_test /= num_model_iterations
+
+    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN +
+                "\nTest Root Mean squared error {:.2f} Mean squared error {:.2f}".format(rmse_test,
+                                                                                         mse_test) + sf.Color.END)
 
     return None
 
 
 # Run k-fold cross-validation. Classify users into if they'll churn or no
-def run_cv(x, y, clf_class, **kwargs):
-    # Construct a kfolds object
-    kf = KFold(len(y), n_folds=5, shuffle=True)
-    y_pred = y.copy()
+def run_cv(x_train, y_train, x_test, clf_class, **kwargs):
+
+    # Construct a kfolds object from train data
+    kf = KFold(len(y_train), n_folds=5, shuffle=True)
+    y_pred_cv = y_train.copy()
 
     # logger.debug(kf)
     # Initialize to avoid pep8 warning, thought clf will always be initialized below
     clf = 0
 
     # Iterate through folds
-    for train_index, test_index in kf:
+    for train_index, cv_index in kf:
         # Initialize a classifier with key word arguments
         clf = clf_class(**kwargs)
 
-        x_train, x_test = x[train_index], x[test_index]
-        y_train = y[train_index]
+        x_cv_train, x_cv_test = x_train[train_index], x_train[cv_index]
+        y_cv_train = y_train[train_index]
 
         if train_index[0]:
             logger.debug(clf)
 
-        # fit_intercept=False
+        clf.fit(x_cv_train, y_cv_train)
 
-        clf.fit(x_train, y_train)
+        # Predict on cv data
+        y_pred_cv[cv_index] = clf.predict(x_cv_test)
 
-        y_pred[test_index] = clf.predict(x_test)
+    # Now predict test data on trained model
+    y_pred_test = clf.predict(x_test)
 
     if hasattr(clf, "feature_importances_"):
         logger.debug(sf.Color.BOLD + sf.Color.BLUE + "Feature importance" + sf.Color.END)
@@ -215,7 +241,7 @@ def run_cv(x, y, clf_class, **kwargs):
 
     # logger.info(clf.estimators_)
 
-    return y_pred
+    return y_pred_cv, y_pred_test
 
 
 # Test dataset. Classify users into if they'll churn or no
@@ -229,7 +255,7 @@ def run_test(x_train, y_train, x_test, clf_class, **kwargs):
 
     clf.fit(x_train, y_train)
 
-    y_pred = clf.predict(x_test)
+    y_pred_test = clf.predict(x_test)
 
     if hasattr(clf, "feature_importances_"):
         logger.debug(sf.Color.BOLD + sf.Color.BLUE + "Feature importance" + sf.Color.END)
@@ -238,7 +264,8 @@ def run_test(x_train, y_train, x_test, clf_class, **kwargs):
 
     # logger.info(clf.estimators_)
 
-    return y_pred
+    return y_pred_test
+
 
 ##################################################################################################################
 
@@ -255,8 +282,7 @@ if __name__ == "__main__":
 
     # Choose problem to solve
 
-    # Pep8 shows a warning for all other estimators other than RF (probably because RF is the default class in
-    # telecom / kids churn. This is not a valid warning and has been validated
+    # Pep8 shows a warning for all other estimators other than RF This is not a valid warning and has been validated
 
     nfl_pred(num_model_iterations=1, plot_learning_curve=True, feature_scaling=False,
              clf_class=estimator, **estimator_keywords)
