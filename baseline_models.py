@@ -11,8 +11,7 @@ from __future__ import division
 from sklearn.ensemble import RandomForestClassifier as RandomForest
 # from sklearn.svm import SVC  # Support vector machines
 # from sklearn.neighbors import KNeighborsClassifier as KNearestNeighbors
-# from sklearn import linear_model
-# from sknn.mlp import Classifier, Layer
+# from sknn.mlp import Classifier as NeuralNetClassifier, Layer as NeuralNetLayer
 
 # sklearn Toolkit
 from sklearn.metrics import precision_recall_fscore_support
@@ -42,7 +41,7 @@ __fail__ = 0
 # Setup logging
 logging.config.fileConfig('logging.conf')
 
-logger = logging.getLogger("info")
+logger = logging.getLogger("debug")
 
 
 def telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
@@ -289,7 +288,7 @@ def run_model(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_lea
     mean_fbeta_score /= num_model_iterations
 
     logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nPrecision {:.2f} Recall {:.2f} Fbeta-score {:.2f}".format(
-                mean_precision * 100, mean_recall * 100, mean_fbeta_score * 100) + sf.Color.END)
+        mean_precision * 100, mean_recall * 100, mean_fbeta_score * 100) + sf.Color.END)
 
     # Only for CV, compare probability predictions of the model
     if not cv_0_test_1 and run_prob_predictions:
@@ -329,7 +328,6 @@ def accuracy(y_true, y_pred):
     logger.debug("correct_positive_prediction %d", correct_positive_prediction)
     logger.debug("correct_negative_prediction %d", correct_negative_prediction)
     logger.debug("Incorrect_prediction %d", incorrect_prediction)
-    logger.debug("\n")
 
     return np.mean(positive_prediction)
 
@@ -512,25 +510,30 @@ def compare_prob_predictions(x, y, clf_class, **kwargs):
 ##################################################################################################################
 
 if __name__ == "__main__":
-    # Random Forest
+    # Choose model
 
     estimator = RandomForest
+    # estimator_keywords = dict()
     # Below keywords valid only for RF, all other models need own arguments or use empty dict for defaults
     estimator_keywords = dict(n_estimators=1000, verbose=0, criterion='entropy', warm_start='False', n_jobs=-1,
                               max_features=5)
 
-    # Neural network
+    start_time = time.time()
 
-    # estimator = Classifier
-    # estimator_keywords = dict()
-    # estimator_keywords = dict(layers=[Layer("Rectifier", units=50), Layer("Softmax")],
-    #                          learning_rate=0.001, n_iter=10)
+    # Neural network
+    # estimator = NeuralNetClassifier
+    # estimator_keywords = dict(layers=[NeuralNetLayer("Rectifier", units=50), NeuralNetLayer("Softmax")],
+    #                           learning_rate=0.001, n_iter=10)
 
     # Pep8 shows a warning for all other estimators other than RF (probably because RF is the default class in
     # telecom / kids churn. This is not a valid warning and has been validated
 
-    telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=True, feature_scaling=True,
+    # Choose problem to solve
+
+    telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=False,
                   clf_class=estimator, **estimator_keywords)
 
-    # kids_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=True, feature_scaling=True,
+    # kids_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=True, feature_scaling=False,
     #            clf_class=estimator, **estimator_keywords)
+
+    print("Total time: %0.3f" % float(time.time() - start_time))
