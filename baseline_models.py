@@ -41,7 +41,8 @@ __fail__ = 0
 # Setup logging
 logging.config.fileConfig('logging.conf')
 
-logger = logging.getLogger("debug")
+logger = logging.getLogger("info")
+#########################################################################################################
 
 
 def telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
