@@ -71,3 +71,8 @@ def save_npy_array_to_csv(npy_fname, csv_fname):
 # Returns random floating point value within the range specified
 def random_float(low, high):
     return random.random()*(high-low) + low
+
+
+# Returns all elements in the list with format 0.2f
+def format_float_0_2f(list_name):
+    return "["+", ".join(["%.2f" % x for x in list_name])+"]"
