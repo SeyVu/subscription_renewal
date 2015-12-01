@@ -231,7 +231,7 @@ def run_model(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_lea
         title = "Learning Curves"
         # Cross validation with 100 iterations to get smoother mean test and train
         # score curves, each time with 20% data randomly selected as a validation set.
-        cv = cross_validation.ShuffleSplit(x.shape[0], n_iter=100, test_size=0.2, random_state=0)
+        cv = cross_validation.ShuffleSplit(x.shape[0], n_iter=25, test_size=0.2, random_state=0)
 
         modeling_tools.plot_learning_curve(clf_class(**kwargs), title, x, y, cv=cv, n_jobs=-1)
 
