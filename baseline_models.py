@@ -5,13 +5,17 @@
 #  2. Purchases statistics
 #
 #########################################################################################################
-from __future__ import division
+from __future__ import division  # Used in matplotlib
 
 # Imports for various models (Turn on as needed)
 from sklearn.ensemble import RandomForestClassifier as RandomForest
-# from sklearn.svm import SVC  # Support vector machines
-# from sklearn.neighbors import KNeighborsClassifier as KNearestNeighbors
+# from sklearn.ensemble import BaggingClassifier as Bagging
+# from sklearn.svm import SVC as SVC  # Support vector machines
+# from sklearn.neighbors import KNeighborsClassifier as KNN
+from sklearn.linear_model import LogisticRegression as LogReg
+# from sklearn.linear_model import RidgeClassifier as Ridge
 # from sknn.mlp import Classifier as NeuralNetClassifier, Layer as NeuralNetLayer
+from sklearn.ensemble import GradientBoostingClassifier as GradBoost
 
 # sklearn Toolkit
 from sklearn.metrics import precision_recall_fscore_support
@@ -41,7 +45,9 @@ __fail__ = 0
 # Setup logging
 logging.config.fileConfig('logging.conf')
 
-logger = logging.getLogger("info")
+logger = logging.getLogger("debug")
+
+
 #########################################################################################################
 
 
@@ -129,14 +135,15 @@ def telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learnin
     logger.info(np.unique(y))
 
     # Run model on cross-validation data
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Cross-Validation" + sf.Color.END)
-    run_model(cv_0_test_1=0, x=x, y=y, num_model_iterations=num_model_iterations,
-              plot_learning_curve=plot_learning_curve, clf_class=clf_class, **kwargs)
+    # logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Cross-Validation" + sf.Color.END)
+    # run_model(cv_0_test_1=0, x=x, y=y, num_model_iterations=num_model_iterations,
+    #           plot_learning_curve=plot_learning_curve, clf_class=clf_class, **kwargs)
     # Run model on test data
     logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunnning Test" + sf.Color.END)
-    run_model(cv_0_test_1=1, x=x, y=y, num_model_iterations=num_model_iterations, clf_class=clf_class, **kwargs)
+    [y_actual, y_predicted] = run_model(cv_0_test_1=1, x=x, y=y, num_model_iterations=num_model_iterations,
+                                        run_prob_predictions=True, clf_class=clf_class, **kwargs)
 
-    return None
+    return [y_actual, y_predicted]
 
 
 def kids_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
@@ -218,20 +225,22 @@ def run_model(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_lea
     # Create train / test split only for test
     if cv_0_test_1:
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=42)
+        y_actual = y_predicted = y_test.copy()
 
         x_train = np.array(x_train)
         x_test = np.array(x_test)
         y_train = np.array(y_train)
-        y_test = np.array(y_test)
     else:
         x_train, x_test, y_train, y_test = 0, 0, 0, 0
+
+        y_actual = y_predicted = y.copy()
 
     # Plot learning curve only for cv
     if not cv_0_test_1 and plot_learning_curve:
         title = "Learning Curves"
-        # Cross validation with 100 iterations to get smoother mean test and train
+        # Cross validation with 25 iterations to get smoother mean test and train
         # score curves, each time with 20% data randomly selected as a validation set.
-        cv = cross_validation.ShuffleSplit(x.shape[0], n_iter=100, test_size=0.2, random_state=0)
+        cv = cross_validation.ShuffleSplit(x.shape[0], n_iter=25, test_size=0.2, random_state=0)
 
         modeling_tools.plot_learning_curve(clf_class(**kwargs), title, x, y, cv=cv, n_jobs=-1)
 
@@ -246,58 +255,83 @@ def run_model(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_lea
     # Predict accuracy (mean of num_iterations)
     logger.info("k-fold CV:")
 
+    # Accuracy
     mean_correct_positive_prediction = 0
+    mean_correct_negative_prediction = 0
+    mean_incorrect_positive_prediction = 0
+    mean_incorrect_negative_prediction = 0
     mean_accuracy = 0
-
-    for _ in range(num_model_iterations):
-        if cv_0_test_1:  # test
-            mean_accuracy += accuracy(y_test, run_test(x_train, y_train, x_test, clf_class, **kwargs))
-        else:  # cv
-            mean_accuracy += accuracy(y, run_cv(x, y, clf_class, **kwargs))
-
-        mean_correct_positive_prediction += correct_positive_prediction
-
-    mean_accuracy /= num_model_iterations
-    mean_correct_positive_prediction /= num_model_iterations
-
-    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nAccuracy {:.2f}".format(mean_accuracy * 100) + sf.Color.END)
-
-    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nCorrect positive prediction {:.2f}".format(
-        mean_correct_positive_prediction) + sf.Color.END)
 
     # Precision / Recall
     beta = 2.0  # higher beta prioritizes recall more than precision, default is 1
-
     mean_precision = 0
     mean_recall = 0
     mean_fbeta_score = 0
 
     for _ in range(num_model_iterations):
         if cv_0_test_1:  # test
-            prec_recall = precision_recall_fscore_support(y_test, run_test(x_train, y_train, x_test, clf_class,
-                                                                           **kwargs), beta=beta, average='binary')
+            y_predicted = run_test(x_train=x_train, y_train=y_train, x_test=x_test,
+                                   run_prob_predictions=run_prob_predictions, clf_class=clf_class, **kwargs)
         else:  # cv
-            prec_recall = precision_recall_fscore_support(y, run_cv(x, y, clf_class, **kwargs), beta=beta,
-                                                          average='binary')
+            y_predicted = run_cv(x=x, y=y, clf_class=clf_class, **kwargs)
+
+        # Accuracy
+
+        mean_accuracy += accuracy(y_actual, y_predicted)
+
+        mean_correct_positive_prediction += correct_positive_prediction
+        mean_correct_negative_prediction += correct_negative_prediction
+        mean_incorrect_positive_prediction += incorrect_positive_prediction
+        mean_incorrect_negative_prediction += incorrect_negative_prediction
+
+        # Precision recall
+        prec_recall = precision_recall_fscore_support(y_true=y_actual, y_pred=y_predicted, beta=beta, average='binary')
 
         mean_precision += prec_recall[0]
         mean_recall += prec_recall[1]
         mean_fbeta_score += prec_recall[2]
 
+    # Accuracy
+    mean_accuracy /= num_model_iterations
+    mean_correct_positive_prediction /= num_model_iterations
+    mean_correct_negative_prediction /= num_model_iterations
+    mean_incorrect_positive_prediction /= num_model_iterations
+    mean_incorrect_negative_prediction /= num_model_iterations
+
+    # Precision recall
     mean_precision /= num_model_iterations
     mean_recall /= num_model_iterations
     mean_fbeta_score /= num_model_iterations
 
+    # Accuracy
+    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nAccuracy {:.2f}".format(mean_accuracy * 100) + sf.Color.END)
+
+    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nCorrect positive prediction {:.2f}".format(
+        mean_correct_positive_prediction) + sf.Color.END)
+    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nCorrect negative prediction {:.2f}".format(
+        mean_correct_negative_prediction) + sf.Color.END)
+    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nIncorrect positive prediction {:.2f}".format(
+        mean_incorrect_positive_prediction) + sf.Color.END)
+    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nIncorrect negative prediction {:.2f}".format(
+        mean_incorrect_negative_prediction) + sf.Color.END)
+
+    # Precision recall
     logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nPrecision {:.2f} Recall {:.2f} Fbeta-score {:.2f}".format(
         mean_precision * 100, mean_recall * 100, mean_fbeta_score * 100) + sf.Color.END)
 
-    # Only for CV, compare probability predictions of the model
-    if not cv_0_test_1 and run_prob_predictions:
-        logger.info("\nPrediction probabilities\n")
+    # compare probability predictions of the model
+    if run_prob_predictions:
+        if not cv_0_test_1:
+            logger.info("\nPrediction probabilities for CV\n")
 
-        compare_prob_predictions(x, y, clf_class, **kwargs)
+        # compare_prob_predictions(cv_0_test_1=cv_0_test_1, x=x, y=y, x_test=0, clf_class=clf_class, **kwargs)
+        else:
+            logger.info("\nPrediction probabilities for Test\n")
 
-    return None
+            # compare_prob_predictions(cv_0_test_1=cv_0_test_1, x=x_train, y=y_train, x_test=x_test,
+            #                          clf_class=clf_class, **kwargs)
+
+    return [y_actual, y_predicted]
 
 
 def accuracy(y_true, y_pred):
@@ -306,11 +340,13 @@ def accuracy(y_true, y_pred):
 
     global correct_positive_prediction
     global correct_negative_prediction
-    global incorrect_prediction
+    global incorrect_positive_prediction
+    global incorrect_negative_prediction
 
     correct_positive_prediction = 0
     correct_negative_prediction = 0
-    incorrect_prediction = 0
+    incorrect_positive_prediction = 0
+    incorrect_negative_prediction = 0
 
     for idx, value in np.ndenumerate(y_true):
         if y_true[idx] == y_pred[idx]:
@@ -323,21 +359,28 @@ def accuracy(y_true, y_pred):
         elif y_pred[idx] == 0 and y_true[idx] == y_pred[idx]:
             correct_negative_prediction += 1
         else:
-            incorrect_prediction += 1
+            if y_pred[idx]:
+                incorrect_positive_prediction += 1
+            else:
+                incorrect_negative_prediction += 1
 
     logger.debug("\nAccuracy method output\n")
     logger.debug("correct_positive_prediction %d", correct_positive_prediction)
+    logger.debug("Incorrect_positive_prediction %d", incorrect_positive_prediction)
     logger.debug("correct_negative_prediction %d", correct_negative_prediction)
-    logger.debug("Incorrect_prediction %d", incorrect_prediction)
+    logger.debug("Incorrect_negative_prediction %d", incorrect_negative_prediction)
 
     return np.mean(positive_prediction)
 
 
 # Run k-fold cross-validation. Classify users into if they'll churn or no
-def run_cv(x, y, clf_class, **kwargs):
+def run_cv(x, y, run_prob_predictions=False, clf_class=RandomForest, **kwargs):
     # Construct a kfolds object
     kf = KFold(len(y), n_folds=5, shuffle=True)
+
     y_pred = y.copy()
+
+    y_prob = np.zeros((len(y), 2), dtype=float)
 
     # logger.debug(kf)
     # Initialize to avoid pep8 warning, thought clf will always be initialized below
@@ -351,14 +394,22 @@ def run_cv(x, y, clf_class, **kwargs):
         x_train, x_test = x[train_index], x[test_index]
         y_train = y[train_index]
 
-        if train_index[0]:
+        if not train_index[0]:
             logger.debug(clf)
+
+        if run_prob_predictions:
+            # For probability prediction, just run 10 estimators
+            clf.set_params(n_estimators=10)
 
         clf.fit(x_train, y_train)
 
-        y_pred[test_index] = clf.predict(x_test)
+        if not run_prob_predictions:
+            y_pred[test_index] = clf.predict(x_test)
+        else:  # Predict probabilities
+            # y_prob[idx, class]. Since classes are 2 here, will contain info on prob of both classes
+            y_prob[test_index] = clf.predict_proba(x_test)
 
-        accuracy(y[test_index], y_pred[test_index])
+            # accuracy(y[test_index], y_pred[test_index])
 
     if hasattr(clf, "feature_importances_"):
         logger.debug(sf.Color.BOLD + sf.Color.BLUE + "Feature importance" + sf.Color.END)
@@ -366,6 +417,64 @@ def run_cv(x, y, clf_class, **kwargs):
         logger.debug(clf.feature_importances_)
 
     # logger.info(clf.estimators_)
+
+    if run_prob_predictions:
+        return y_prob
+    else:
+        return y_pred
+
+
+# Test on different dataset. Classify users into if they'll churn or no
+def run_test(x_train, y_train, x_test, run_prob_predictions=False, clf_class=RandomForest, **kwargs):
+    y_pred = np.zeros((len(x_test), 1), dtype=int)
+
+    # Initialize y_prob for predicting probabilities
+    y_prob = np.zeros((len(x_test), 2), dtype=float)
+
+    # Initialize a classifier with key word arguments
+    clf = clf_class(**kwargs)
+
+    logger.debug(clf)
+
+    time.sleep(5)  # sleep time in seconds
+
+    if not run_prob_predictions:
+        for iter_num in range(1, 2):
+            clf.set_params(n_estimators=100 * iter_num)
+            logger.debug(clf)
+            clf.fit(x_train, y_train)
+
+        y_pred = clf.predict(x_test)
+    else:  # Predict probabilities
+        logger.debug(clf)
+        clf.fit(x_train, y_train)
+
+        # y_prob[idx, class]. Since classes are 2 here, will contain info on prob of both classes
+        y_prob = clf.predict_proba(x_test)
+        logger.debug(y_prob)
+
+    if hasattr(clf, "feature_importances_"):
+        logger.debug(sf.Color.BOLD + sf.Color.BLUE + "Feature importance" + sf.Color.END)
+        # Print importance of the input features and probability for each prediction
+        logger.debug(clf.feature_importances_)
+
+    # Print list of predicted classes in order
+    if hasattr(clf, "classes_"):
+        logger.debug(sf.Color.BOLD + sf.Color.BLUE + "Predict probability classes" + sf.Color.END)
+        # Print importance of the input features and probability for each prediction
+        logger.debug(clf.classes_)
+
+    # logger.info(clf.estimators_)
+
+    if run_prob_predictions:
+        for idx, _ in np.ndindex(y_prob.shape):
+            if y_prob[idx, 1] < 0.45:
+                y_pred[idx] = 0
+            else:
+                y_pred[idx] = 1
+                # print y_prob
+
+    y_pred = np.array(y_pred)
 
     return y_pred
 
@@ -421,80 +530,37 @@ def run_cv_splits(x, y, num_of_splits, clf_class, **kwargs):
     return [y_test, y_pred]
 
 
-# Test on different dataset. Classify users into if they'll churn or no
-def run_test(x_train, y_train, x_test, clf_class, **kwargs):
-    # Initialize a classifier with key word arguments
-    clf = clf_class(**kwargs)
-
-    logger.debug(clf)
-
-    time.sleep(5)  # sleep time in seconds
-
-    clf.fit(x_train, y_train)
-
-    y_pred = clf.predict(x_test)
-
-    if hasattr(clf, "feature_importances_"):
-        logger.debug(sf.Color.BOLD + sf.Color.BLUE + "Feature importance" + sf.Color.END)
-        # Print importance of the input features and probability for each prediction
-        logger.debug(clf.feature_importances_)
-
-    # logger.info(clf.estimators_)
-
-    return y_pred
-
-
-# Predict probabilities of churn
-def run_prob_cv(x, y, clf_class, **kwargs):
-    # Construct a kfolds object
-    kf = KFold(len(y), n_folds=5, shuffle=True)
-
-    y_prob = np.zeros((len(y), 2), dtype=float)
-
-    # logger.debug(kf)
-
-    # Initialize a classifier with key word arguments
-    clf = clf_class(**kwargs)
-
-    # Iterate through folds
-    for train_index, test_index in kf:
-        x_train, x_test = x[train_index], x[test_index]
-        y_train = y[train_index]
-
-        if train_index[0]:
-            print clf
-
-        clf.fit(x_train, y_train)
-
-        # y_prob[idx, class]. Since classes are 2 here, will contain info on prob of both classes
-        y_prob[test_index] = clf.predict_proba(x_test)
-
-    if hasattr(clf, "feature_importances_"):
-        logger.debug(sf.Color.BOLD + sf.Color.BLUE + "\nFeature importance\n" + sf.Color.END)
-        # Print importance of the input features and probability for each prediction
-        logger.debug(clf.feature_importances_)
-
-    # logger.info(y_prob)
-
-    return y_prob
-
-
-def compare_prob_predictions(x, y, clf_class, **kwargs):
+# Test to compare probabilities of the predictions vs. just prediction accuracy
+def compare_prob_predictions(cv_0_test_1, x, y, x_test, clf_class, **kwargs):
     import warnings
     warnings.filterwarnings('ignore')  # TODO - check if we can remove this
 
-    # Use 10 estimators so predictions are all multiples of 0.1
-    pred_prob = run_prob_cv(x, y, clf_class, **kwargs)
+    # Use 10 estimators (inside run_cv and run_test so predictions are all multiples of 0.1
+    if not cv_0_test_1:  # Run CV
+        pred_prob = run_cv(x=x, y=y, run_prob_predictions=True, clf_class=clf_class, **kwargs)
+    else:  # Run test
+        pred_prob = run_test(x_train=x, y_train=y, x_test=x_test, run_prob_predictions=True, clf_class=clf_class,
+                             **kwargs)
 
     pred_churn = pred_prob[:, 1]
 
     is_churn = (y == 1)
+
+    print "######1"
+    print(pred_churn, pred_prob)
 
     # Number of times a predicted probability is assigned to an observation
     counts = pd.value_counts(pred_churn).sort_index()
 
     # calculate true probabilities
     true_prob = {}
+
+    print "######2"
+
+    print counts
+
+    print counts.index
+
     for prob in counts.index:
         # Pep8 shows a warning that's not valid
         true_prob[prob] = np.mean(is_churn[pred_churn == prob])
@@ -508,33 +574,94 @@ def compare_prob_predictions(x, y, clf_class, **kwargs):
     # print (1.0 - counts.icol(0)) * counts.icol(1) * counts.icol(2)
 
 
+# Use multiple models (minimum 2) to create an ensemble
+# Use majority voting to predict classes of new ensemble. For even number of models, split = majority!
+def models_ensemble(model_names, model_parameters):
+    # Check if a minimum of 3 models are there
+    if len(model_names) < 2:
+        raise ValueError("Need a minimum of 2 models to do an ensemble")
+
+    actual_output_values = dict()
+    predicted_output_values = dict()
+
+    num_of_models = len(model_names)
+
+    # Get actual and predicted values for each model
+    for idx in range(num_of_models):
+        model_key = "model{:d}".format(idx)
+
+        # Append to dictionary with dynamically created key names above
+        [actual_output_values[model_key], predicted_output_values[model_key]] = \
+            telecom_churn(use_synthetic_data=False, num_model_iterations=1,
+                          plot_learning_curve=False, feature_scaling=True, clf_class=model_names[model_key],
+                          **model_parameters[model_key])
+
+        # accuracy(actual_output_values[actual_output_name], predicted_output_values[predicted_output_name])
+
+    y_predicted_ensemble = predicted_output_values['model0'].copy()
+
+    # # Create ensemble prediction using majority voting scheme
+    for sample in np.ndindex(predicted_output_values['model0'].shape):
+        y_predicted_sum = 0  # Reset for every sample
+        for actual_key_name in actual_output_values.iterkeys():
+            if predicted_output_values[actual_key_name][sample]:
+                y_predicted_sum += 1
+
+        # Need to have either numerator or denominator in round() as float to roundup
+        if y_predicted_sum >= round(num_of_models / 2.0):
+            y_predicted_ensemble[sample] = 1
+        else:
+            y_predicted_ensemble[sample] = 0
+
+    accuracy(actual_output_values['model0'], y_predicted_ensemble)
+
+
 ##################################################################################################################
 
 if __name__ == "__main__":
-    # Choose model
-
-    estimator = RandomForest
-    # estimator_keywords = dict()
-    # Below keywords valid only for RF, all other models need own arguments or use empty dict for defaults
-    estimator_keywords = dict(n_estimators=1000, verbose=0, criterion='entropy', warm_start='False', n_jobs=-1,
-                              max_features=5)
-
     start_time = time.time()
+
+    # Choose models for the ensemble. Uncomment to choose model needed
+    estimator_model0 = RandomForest
+    estimator_keywords_model0 = dict(n_estimators=1000, verbose=0, criterion='entropy', n_jobs=-1,
+                                     max_features=5, class_weight='auto')
+
+    estimator_model1 = GradBoost
+    estimator_keywords_model1 = dict(n_estimators=1000, loss='deviance', learning_rate=0.01, verbose=0, max_depth=5,
+                                     subsample=1.0)
+
+    # estimator = SVC
+    # estimator_keywords = dict(C=1, kernel='rbf', class_weight='auto')
+    estimator_model2 = LogReg
+    estimator_keywords_model2 = dict(solver='liblinear')
+
+    # dict model names and parameters always need to have keys model0, model1, model2...
+    model_names_list = dict(model0=estimator_model0, model1=estimator_model1, model2=estimator_model2)
+    model_parameters_list = dict(model0=estimator_keywords_model0, model1=estimator_keywords_model1,
+                                 model2=estimator_keywords_model2)
+
+    models_ensemble(model_names_list, model_parameters_list)
+
+    ##################################
 
     # Neural network
     # estimator = NeuralNetClassifier
-    # estimator_keywords = dict(layers=[NeuralNetLayer("Rectifier", units=50), NeuralNetLayer("Softmax")],
-    #                           learning_rate=0.001, n_iter=10)
+    # estimator_keywords = dict(layers=[NeuralNetLayer("Rectifier", units=64), NeuralNetLayer("Rectifier", units=32),
+    #                                   NeuralNetLayer("Softmax")],
+    #                           learning_rate=0.001, n_iter=50)
 
     # Pep8 shows a warning for all other estimators other than RF (probably because RF is the default class in
     # telecom / kids churn. This is not a valid warning and has been validated
 
     # Choose problem to solve
 
-    telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=False,
-                  clf_class=estimator, **estimator_keywords)
+    # telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
+    #               clf_class=estimator, **estimator_keywords)
 
-    # kids_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=True, feature_scaling=False,
+    # telecom_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=True, feature_scaling=True,
+    #               clf_class=estimator, **estimator_keywords)
+
+    # kids_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
     #            clf_class=estimator, **estimator_keywords)
 
     print("Total time: %0.3f" % float(time.time() - start_time))
