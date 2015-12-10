@@ -7,22 +7,14 @@
 #########################################################################################################
 from __future__ import division  # Used in matplotlib
 
-# Imports for various models (Turn on as needed)
+# RandomForest is default model specified in some methods. Might not be used by high-level functions
 from sklearn.ensemble import RandomForestClassifier as RandomForest
-# from sklearn.ensemble import BaggingClassifier as Bagging
-# from sklearn.svm import SVC as SVC  # Support vector machines
-# from sklearn.neighbors import KNeighborsClassifier as KNN
-from sklearn.linear_model import LogisticRegression as LogReg
-# from sklearn.linear_model import RidgeClassifier as Ridge
-# from sknn.mlp import Classifier as NeuralNetClassifier, Layer as NeuralNetLayer
-from sklearn.ensemble import GradientBoostingClassifier as GradBoost
 
 # sklearn Toolkit
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn import cross_validation
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
-from sklearn.preprocessing import StandardScaler
 
 import pandas as pd
 import numpy as np
@@ -45,165 +37,25 @@ __fail__ = 0
 # Setup logging
 logging.config.fileConfig('logging.conf')
 
-logger = logging.getLogger("debug")
+logger = logging.getLogger("info")
 
 
 #########################################################################################################
 
-
-def telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
-                  clf_class=RandomForest, **kwargs):
-    logger.debug("Importing data")
-    if use_synthetic_data:
-        if os.path.isfile('data/data_synthetic.csv'):
-            churn_df = pd.read_csv('data/data_synthetic.csv', sep=',')
-        else:
-            raise ValueError("Synthetic data not available")
-        # split rows for working on partial data
-        start_row = 5000
-        end_row = 9999
-    else:
-        churn_df = pd.read_csv('data/train_data.csv', sep=', ')
-        # split rows for working on partial data
-        start_row = 0
-        end_row = 4999
-
-    churn_df = churn_df.iloc[start_row:end_row].copy()
-
-    churn_df = churn_df.reset_index()
-
-    col_names = churn_df.columns.tolist()
-
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "Column names:" + sf.Color.END)
-    logger.info(col_names)
-
-    to_show = col_names[:6] + col_names[-6:]
-
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "Sample data:" + sf.Color.END)
-    logger.info(churn_df[to_show].head(6))
-
-    # Isolate target data
-    churn_result = churn_df['Churn?']
-    y = np.where(churn_result == 'True.', 1, 0)
-
-    logger.debug(y)
-
-    # We don't need these columns. Index is created only when do a partial split
-    if 'index' in col_names:
-        to_drop = ['index', 'Area Code', 'Phone', 'Churn?']
-    else:
-        to_drop = ['Area Code', 'Phone', 'Churn?']
-
-    churn_feat_space = churn_df.drop(to_drop, axis=1)
-
-    # 'yes'/'no' has to be converted to boolean values
-    # NumPy converts these from boolean to 1. and 0. later
-    yes_no_cols = ["Int'l Plan", "VMail Plan"]
-
-    churn_feat_space[yes_no_cols] = (churn_feat_space[yes_no_cols] == 'yes')
-
-    # Below segment replaces column 'State' with a number for each state (alphabetically sorted)
-    # separate state into it's own df as it's easier to operate on later
-    churn_feat_state = churn_feat_space[['State']]
-
-    state = np.unique(churn_feat_state)
-
-    for index, row in churn_feat_state.iterrows():
-        churn_feat_state.iat[index, 0] = int(np.where(state == row['State'])[0])
-
-    churn_feat_space['State'] = churn_feat_state
-
-    # logger.debug(churn_feat_space['State'])
-
-    feature_names = churn_feat_space.columns.tolist()
-
-    logger.debug(feature_names)
-
-    x = churn_feat_space.as_matrix().astype(np.float)
-
-    if feature_scaling:
-        # Feature scaling and normalization
-        scaler = StandardScaler()
-        x = scaler.fit_transform(x)
-
-    logger.debug(x)
-
-    y = np.array(y)
-
-    logger.info("Feature space holds %d observations and %d features" % x.shape)
-    logger.info("Unique target labels: ")
-    logger.info(np.unique(y))
-
+# Wrapper function to take input features and output from files with specific problems to solve and
+# call run_models for CV and / or test
+def run_models_wrapper(x, y, num_model_iterations=1, plot_learning_curve=False, clf_class=RandomForest, **kwargs):
     # Run model on cross-validation data
     # logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Cross-Validation" + sf.Color.END)
-    # run_model(cv_0_test_1=0, x=x, y=y, num_model_iterations=num_model_iterations,
-    #           plot_learning_curve=plot_learning_curve, clf_class=clf_class, **kwargs)
+    # [y_actual, y_predicted] = run_model(cv_0_test_1=0, x=x, y=y, num_model_iterations=num_model_iterations,
+    #                                     run_prob_predictions=True, plot_learning_curve=plot_learning_curve,
+    #                                     clf_class=clf_class, **kwargs)
     # Run model on test data
     logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunnning Test" + sf.Color.END)
     [y_actual, y_predicted] = run_model(cv_0_test_1=1, x=x, y=y, num_model_iterations=num_model_iterations,
                                         run_prob_predictions=True, clf_class=clf_class, **kwargs)
 
     return [y_actual, y_predicted]
-
-
-def kids_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
-               clf_class=RandomForest, **kwargs):
-    logger.info("Importing data")
-    if use_synthetic_data:
-        if os.path.isfile('data/synthetic_kids_ver1.csv'):
-            churn_df = pd.read_csv('data/synthetic_kids_ver1.csv', sep=',')
-        else:
-            raise ValueError("Synthetic data not available")
-    else:
-        raise ValueError("Actual data not available")
-
-    col_names = churn_df.columns.tolist()
-
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "Column names:" + sf.Color.END)
-    logger.info(col_names)
-
-    to_show = col_names[:]
-
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nSample data:" + sf.Color.END)
-    logger.info(churn_df[to_show].head(6))
-
-    # Isolate target data
-    y = np.array(churn_df['Churn'])
-
-    logger.debug(y)
-
-    to_drop = ['Churn']
-
-    churn_feat_space = churn_df.drop(to_drop, axis=1)
-
-    feature_names = churn_feat_space.columns.tolist()
-
-    logger.debug(feature_names)
-
-    x = churn_feat_space.as_matrix().astype(np.float)
-
-    if feature_scaling:
-        # Feature scaling and normalization
-        scaler = StandardScaler()
-        x = scaler.fit_transform(x)
-
-    logger.debug(x)
-
-    y = np.array(y)
-
-    logger.info("Feature space holds %d observations and %d features" % x.shape)
-    logger.info("Unique target labels:")
-    logger.info(np.unique(y))
-
-    # Run model on cross-validation data
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Cross-Validation" + sf.Color.END)
-    run_model(cv_0_test_1=0, x=x, y=y, num_model_iterations=num_model_iterations,
-              plot_learning_curve=plot_learning_curve, clf_class=clf_class, **kwargs)
-    # Run model on test data
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunnning Test" + sf.Color.END)
-    run_model(cv_0_test_1=1, x=x, y=y, num_model_iterations=num_model_iterations, clf_class=clf_class, **kwargs)
-
-    return None
 
 
 def run_model(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_learning_curve=False,
@@ -374,6 +226,9 @@ def accuracy(y_true, y_pred):
 
 
 # Run k-fold cross-validation. Classify users into if they'll churn or no
+# If run_prob_predictions is False, we rely on the model to give classified outputs.
+# If true, then model gives probabilities as outputs and we use a threshold to classify them into
+# different classes. Currently probability predictions only support 2 classes
 def run_cv(x, y, run_prob_predictions=False, clf_class=RandomForest, **kwargs):
     # Construct a kfolds object
     kf = KFold(len(y), n_folds=5, shuffle=True)
@@ -397,9 +252,9 @@ def run_cv(x, y, run_prob_predictions=False, clf_class=RandomForest, **kwargs):
         if not train_index[0]:
             logger.debug(clf)
 
-        if run_prob_predictions:
-            # For probability prediction, just run 10 estimators
-            clf.set_params(n_estimators=10)
+        # if run_prob_predictions:
+        #     # For probability prediction, just run 10 estimators
+        #     clf.set_params(n_estimators=10)
 
         clf.fit(x_train, y_train)
 
@@ -419,12 +274,20 @@ def run_cv(x, y, run_prob_predictions=False, clf_class=RandomForest, **kwargs):
     # logger.info(clf.estimators_)
 
     if run_prob_predictions:
-        return y_prob
-    else:
-        return y_pred
+        for idx, _ in np.ndindex(y_prob.shape):
+            if y_prob[idx, 1] < 0.45:
+                y_pred[idx] = 0
+            else:
+                y_pred[idx] = 1
+                # print y_prob
+
+    return y_pred
 
 
 # Test on different dataset. Classify users into if they'll churn or no
+# If run_prob_predictions is False, we rely on the model to give classified outputs.
+# If true, then model gives probabilities as outputs and we use a threshold to classify them into
+# different classes. Currently probability predictions only support 2 classes
 def run_test(x_train, y_train, x_test, run_prob_predictions=False, clf_class=RandomForest, **kwargs):
     y_pred = np.zeros((len(x_test), 1), dtype=int)
 
@@ -576,7 +439,7 @@ def compare_prob_predictions(cv_0_test_1, x, y, x_test, clf_class, **kwargs):
 
 # Use multiple models (minimum 2) to create an ensemble
 # Use majority voting to predict classes of new ensemble. For even number of models, split = majority!
-def models_ensemble(model_names, model_parameters):
+def models_ensemble(input_features, output, model_names, model_parameters):
     # Check if a minimum of 3 models are there
     if len(model_names) < 2:
         raise ValueError("Need a minimum of 2 models to do an ensemble")
@@ -592,9 +455,8 @@ def models_ensemble(model_names, model_parameters):
 
         # Append to dictionary with dynamically created key names above
         [actual_output_values[model_key], predicted_output_values[model_key]] = \
-            telecom_churn(use_synthetic_data=False, num_model_iterations=1,
-                          plot_learning_curve=False, feature_scaling=True, clf_class=model_names[model_key],
-                          **model_parameters[model_key])
+            run_models_wrapper(x=input_features, y=output, num_model_iterations=1, plot_learning_curve=False,
+                               clf_class=model_names[model_key], **model_parameters[model_key])
 
         # accuracy(actual_output_values[actual_output_name], predicted_output_values[predicted_output_name])
 
@@ -613,55 +475,20 @@ def models_ensemble(model_names, model_parameters):
         else:
             y_predicted_ensemble[sample] = 0
 
-    accuracy(actual_output_values['model0'], y_predicted_ensemble)
+    accuracy_value = accuracy(actual_output_values['model0'], y_predicted_ensemble)
+
+    beta = 2.0
+
+    prec_recall = precision_recall_fscore_support(y_true=actual_output_values['model0'], y_pred=y_predicted_ensemble,
+                                                  beta=beta, average='binary')
+
+    # Log Accuracy and precision / recall values for the ensemble
+    logger.info(
+        sf.Color.BOLD + sf.Color.DARKCYAN + "\nEnsemble Accuracy {:.2f}".format(accuracy_value * 100) + sf.Color.END)
+
+    logger.info(
+        sf.Color.BOLD + sf.Color.DARKCYAN + "\nEnsemble Precision {:.2f} Recall {:.2f} Fbeta-score {:.2f}".format(
+            prec_recall[0] * 100, prec_recall[1] * 100, prec_recall[2] * 100) + sf.Color.END)
 
 
 ##################################################################################################################
-
-if __name__ == "__main__":
-    start_time = time.time()
-
-    # Choose models for the ensemble. Uncomment to choose model needed
-    estimator_model0 = RandomForest
-    estimator_keywords_model0 = dict(n_estimators=1000, verbose=0, criterion='entropy', n_jobs=-1,
-                                     max_features=5, class_weight='auto')
-
-    estimator_model1 = GradBoost
-    estimator_keywords_model1 = dict(n_estimators=1000, loss='deviance', learning_rate=0.01, verbose=0, max_depth=5,
-                                     subsample=1.0)
-
-    # estimator = SVC
-    # estimator_keywords = dict(C=1, kernel='rbf', class_weight='auto')
-    estimator_model2 = LogReg
-    estimator_keywords_model2 = dict(solver='liblinear')
-
-    # dict model names and parameters always need to have keys model0, model1, model2...
-    model_names_list = dict(model0=estimator_model0, model1=estimator_model1, model2=estimator_model2)
-    model_parameters_list = dict(model0=estimator_keywords_model0, model1=estimator_keywords_model1,
-                                 model2=estimator_keywords_model2)
-
-    models_ensemble(model_names_list, model_parameters_list)
-
-    ##################################
-
-    # Neural network
-    # estimator = NeuralNetClassifier
-    # estimator_keywords = dict(layers=[NeuralNetLayer("Rectifier", units=64), NeuralNetLayer("Rectifier", units=32),
-    #                                   NeuralNetLayer("Softmax")],
-    #                           learning_rate=0.001, n_iter=50)
-
-    # Pep8 shows a warning for all other estimators other than RF (probably because RF is the default class in
-    # telecom / kids churn. This is not a valid warning and has been validated
-
-    # Choose problem to solve
-
-    # telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
-    #               clf_class=estimator, **estimator_keywords)
-
-    # telecom_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=True, feature_scaling=True,
-    #               clf_class=estimator, **estimator_keywords)
-
-    # kids_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
-    #            clf_class=estimator, **estimator_keywords)
-
-    print("Total time: %0.3f" % float(time.time() - start_time))
