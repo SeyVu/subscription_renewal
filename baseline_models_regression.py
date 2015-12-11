@@ -1,8 +1,5 @@
 #########################################################################################################
-#  Description: Coupon visit train csv file has information on user visits. Need to pre process
-#  to obtain data that's useful for training. Key information to be extracted are
-#  1. Compare coupon information between different train files
-#  2. Purchases statistics
+#  Description: Functions for running regression models
 #
 #########################################################################################################
 
@@ -14,7 +11,6 @@ from sklearn.ensemble import RandomForestRegressor as RandomForestReg
 from sklearn import cross_validation
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
-from sklearn.preprocessing import StandardScaler
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -42,48 +38,10 @@ logger = logging.getLogger("debug")
 
 #########################################################################################################
 
-
-def nfl_pred(num_model_iterations=1, test_size=0.2, plot_learning_curve=False, feature_scaling=False,
-             clf_class=RandomForestReg, **kwargs):
-    if os.path.isfile('data/nfl_pred/nfl_pred_inputX.npy'):
-        x = np.load('data/nfl_pred/nfl_pred_inputX.npy')
-    else:
-        raise ValueError("Input npy file not available")
-
-    if os.path.isfile('data/nfl_pred/nfl_pred_outputY.npy'):
-        y = np.load('data/nfl_pred/nfl_pred_outputY.npy')
-    else:
-        raise ValueError("Output npy file not available")
-
-    if feature_scaling:
-        # Feature scaling and normalization
-        scaler = StandardScaler()
-        x = scaler.fit_transform(x)
-
-    logger.debug(x[0:10, :])
-    logger.debug(y[0:10])
-
-    y *= 10
-
-    # Eliminate players with less than x points
-    for i in np.ndindex(y.shape):
-        if y[i] < 0.5:  # TODO-Chose 0.5 iteratively as that gave best MSE, will vary with dataset
-            x[i, 0] = "nan"
-            y[i] = "nan"
-
-    # Eliminate rows with "nan"
-    x = x[~np.isnan(y)]
-    y = y[~np.isnan(y)]
-
-    logger.debug(x.shape)
-    logger.debug(y.shape)
-
-    logger.debug(x[0:10, :])
-    logger.debug(y[0:10])
-
-    logger.info("Feature space holds %d observations and %d features" % x.shape)
-    logger.info("Unique target labels:")
-    logger.info(np.unique(y))
+# Wrapper function to take input features and output from files with specific problems to solve and
+# call run_models for CV and / or test
+def run_models_wrapper(x, y, run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False, test_size=0.2,
+                       clf_class=RandomForestReg, **kwargs):
 
     # Create train / test split only for test
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=42)
@@ -93,16 +51,17 @@ def nfl_pred(num_model_iterations=1, test_size=0.2, plot_learning_curve=False, f
     y_train = np.array(y_train)
     y_test = np.array(y_test)
 
-    # Run model on cross-validation data and predict test data on trained model
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Cross-Validation / Test" + sf.Color.END)
-    run_model_regression(run_test_only=0, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
-                         num_model_iterations=num_model_iterations, plot_learning_curve=plot_learning_curve,
-                         clf_class=clf_class, **kwargs)
-    # Train model and predict on test data
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunnning only Test" + sf.Color.END)
+    if run_cv_flag:
+        # Run model on cross-validation data and predict test data on trained model
+        logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning KFold Cross-Validation / Test" + sf.Color.END)
+        run_model_regression(run_test_only=0, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
+                             num_model_iterations=num_model_iterations, plot_learning_curve=plot_learning_curve,
+                             clf_class=clf_class, **kwargs)
+
+    # Run test - Train model and predict on test data
+    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunnning Only Test" + sf.Color.END)
     run_model_regression(run_test_only=1, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
-                         num_model_iterations=num_model_iterations, plot_learning_curve=plot_learning_curve,
-                         clf_class=clf_class, **kwargs)
+                         num_model_iterations=num_model_iterations, clf_class=clf_class, **kwargs)
 
     return None
 
@@ -116,7 +75,6 @@ def run_model_regression(run_test_only, x_train, y_train, x_test, y_test, num_mo
     # #         y_train, y_test - expected output (numpy array)
     # #         plot_learning_curve (only for cv) - bool
     # #         num_model_iterations - Times to run the model (to average the results)
-    # #         test_size (only for test) - % of data that should be treated as test (in decimal)
     # #         clf_class - Model to run (if specified model doesn't run,
     # #                     then it'll have to be imported from sklearn)
     # #         **kwargs  - Model inputs, refer sklearn documentation for your model to see available parameters
@@ -140,9 +98,6 @@ def run_model_regression(run_test_only, x_train, y_train, x_test, y_test, num_mo
         # plt.show()
         plt.savefig("temp_pyplot_regr_dont_commit/learning_curve.png")
 
-    # Predict accuracy (mean of num_iterations)
-    logger.info("k-fold CV:")
-
     # Error metrics - mean-squared error and root mse
     rmse_cv = rmse_test = 0.0
     mse_cv = mse_test = 0.0
@@ -163,7 +118,7 @@ def run_model_regression(run_test_only, x_train, y_train, x_test, y_test, num_mo
             logger.debug(np.mean(y_pred_test))
 
         else:  # cv
-            y_pred_cv, y_pred_test = run_cv(x_train, y_train, x_test, clf_class, **kwargs)
+            y_pred_cv, y_pred_test = run_kfold_cv(x_train, y_train, x_test, clf_class, **kwargs)
             # Pep8 warning not valid
             rmse_cv += ((np.mean((y_pred_cv - y_train) ** 2)) ** 0.5)
             mse_cv += np.mean((y_pred_cv - y_train) ** 2)
@@ -204,8 +159,8 @@ def run_model_regression(run_test_only, x_train, y_train, x_test, y_test, num_mo
     return None
 
 
-# Run k-fold cross-validation. Classify users into if they'll churn or no
-def run_cv(x_train, y_train, x_test, clf_class, **kwargs):
+# Run k-fold cross-validation and predict on test data from last trained model
+def run_kfold_cv(x_train, y_train, x_test, clf_class, **kwargs):
 
     # Construct a kfolds object from train data
     kf = KFold(len(y_train), n_folds=5, shuffle=True)
@@ -244,7 +199,40 @@ def run_cv(x_train, y_train, x_test, clf_class, **kwargs):
     return y_pred_cv, y_pred_test
 
 
-# Test dataset. Classify users into if they'll churn or no
+# Train model and test with CV dataset (over num_train_iterations). Use trained model to predict on test data
+def run_cv_test(x_train, y_train, x_test, num_train_iterations=1, test_size=0.2, clf_class=RandomForestReg, **kwargs):
+    # Further split train data into train / cv split
+    x_cv_train, x_cv_test, y_cv_train, y_cv_test = train_test_split(x_train, y_train,
+                                                                    test_size=test_size, random_state=42)
+
+    # Initialize a classifier with key word arguments. warm_start always need to be set to true as we want model
+    # to use solution of previous call to fit
+    clf = clf_class(**kwargs)
+
+    logger.debug(clf)
+
+    time.sleep(5)  # sleep time in seconds
+
+    for i in range(num_train_iterations):
+        print "Iteration ", i
+        clf.set_params(n_estimators=10000*(i+1))
+        clf.fit(x_cv_train, y_cv_train)
+
+        clf.predict(x_cv_test)
+
+    y_pred_test = clf.predict(x_test)
+
+    if hasattr(clf, "feature_importances_"):
+        logger.debug(sf.Color.BOLD + sf.Color.BLUE + "Feature importance" + sf.Color.END)
+        # Print importance of the input features and probability for each prediction
+        logger.debug(clf.feature_importances_)
+
+    # logger.info(clf.estimators_)
+
+    return y_pred_test
+
+
+# Train model and predict on test data
 def run_test(x_train, y_train, x_test, clf_class, **kwargs):
     # Initialize a classifier with key word arguments
     clf = clf_class(**kwargs)
@@ -268,23 +256,3 @@ def run_test(x_train, y_train, x_test, clf_class, **kwargs):
 
 
 ##################################################################################################################
-
-if __name__ == "__main__":
-    # Choose model
-
-    estimator = RandomForestReg
-    # estimator_keywords = dict()
-    # Below keywords valid only for RF, all other models need own arguments or use empty dict for defaults
-    estimator_keywords = dict(n_estimators=100, verbose=0, warm_start='False', n_jobs=-1,
-                              max_features=5)
-
-    start_time = time.time()
-
-    # Choose problem to solve
-
-    # Pep8 shows a warning for all other estimators other than RF This is not a valid warning and has been validated
-
-    nfl_pred(num_model_iterations=1, plot_learning_curve=True, feature_scaling=False,
-             clf_class=estimator, **estimator_keywords)
-
-    print("Total time: %0.3f" % float(time.time() - start_time))
