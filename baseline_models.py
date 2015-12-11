@@ -1,8 +1,5 @@
 #########################################################################################################
-#  Description: Coupon visit train csv file has information on user visits. Need to pre process
-#  to obtain data that's useful for training. Key information to be extracted are
-#  1. Compare coupon information between different train files
-#  2. Purchases statistics
+#  Description: Low-level functions for running classification models and model ensembles
 #
 #########################################################################################################
 from __future__ import division  # Used in matplotlib
@@ -44,16 +41,18 @@ logger = logging.getLogger("info")
 
 # Wrapper function to take input features and output from files with specific problems to solve and
 # call run_models for CV and / or test
-def run_models_wrapper(x, y, num_model_iterations=1, plot_learning_curve=False, clf_class=RandomForest, **kwargs):
-    # Run model on cross-validation data
-    # logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Cross-Validation" + sf.Color.END)
-    # [y_actual, y_predicted] = run_model(cv_0_test_1=0, x=x, y=y, num_model_iterations=num_model_iterations,
-    #                                     run_prob_predictions=True, plot_learning_curve=plot_learning_curve,
-    #                                     clf_class=clf_class, **kwargs)
+def run_models_wrapper(x, y, run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False,
+                       run_prob_predictions=True, clf_class=RandomForest, **kwargs):
+    if run_cv_flag:
+        # Run model on cross-validation data
+        logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Cross-Validation" + sf.Color.END)
+        run_model(cv_0_test_1=0, x=x, y=y, num_model_iterations=num_model_iterations,
+                  run_prob_predictions=run_prob_predictions, plot_learning_curve=plot_learning_curve,
+                  clf_class=clf_class, **kwargs)
     # Run model on test data
     logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunnning Test" + sf.Color.END)
     [y_actual, y_predicted] = run_model(cv_0_test_1=1, x=x, y=y, num_model_iterations=num_model_iterations,
-                                        run_prob_predictions=True, clf_class=clf_class, **kwargs)
+                                        run_prob_predictions=run_prob_predictions, clf_class=clf_class, **kwargs)
 
     return [y_actual, y_predicted]
 
@@ -439,7 +438,8 @@ def compare_prob_predictions(cv_0_test_1, x, y, x_test, clf_class, **kwargs):
 
 # Use multiple models (minimum 2) to create an ensemble
 # Use majority voting to predict classes of new ensemble. For even number of models, split = majority!
-def models_ensemble(input_features, output, model_names, model_parameters):
+def models_ensemble(input_features, output, model_names, model_parameters, run_cv_flag=False, num_model_iterations=1,
+                    plot_learning_curve=False, run_prob_predictions=True):
     # Check if a minimum of 3 models are there
     if len(model_names) < 2:
         raise ValueError("Need a minimum of 2 models to do an ensemble")
@@ -452,10 +452,13 @@ def models_ensemble(input_features, output, model_names, model_parameters):
     # Get actual and predicted values for each model
     for idx in range(num_of_models):
         model_key = "model{:d}".format(idx)
-
+        logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Model {:s}".format(model_names[model_key]) +
+                    sf.Color.END)
         # Append to dictionary with dynamically created key names above
         [actual_output_values[model_key], predicted_output_values[model_key]] = \
-            run_models_wrapper(x=input_features, y=output, num_model_iterations=1, plot_learning_curve=False,
+            run_models_wrapper(x=input_features, y=output, run_cv_flag=run_cv_flag,
+                               num_model_iterations=num_model_iterations,
+                               plot_learning_curve=plot_learning_curve, run_prob_predictions=run_prob_predictions,
                                clf_class=model_names[model_key], **model_parameters[model_key])
 
         # accuracy(actual_output_values[actual_output_name], predicted_output_values[predicted_output_name])
@@ -483,12 +486,14 @@ def models_ensemble(input_features, output, model_names, model_parameters):
                                                   beta=beta, average='binary')
 
     # Log Accuracy and precision / recall values for the ensemble
-    logger.info(
-        sf.Color.BOLD + sf.Color.DARKCYAN + "\nEnsemble Accuracy {:.2f}".format(accuracy_value * 100) + sf.Color.END)
+    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nEnsemble output for test data" + sf.Color.END)
 
     logger.info(
-        sf.Color.BOLD + sf.Color.DARKCYAN + "\nEnsemble Precision {:.2f} Recall {:.2f} Fbeta-score {:.2f}".format(
+        sf.Color.BOLD + sf.Color.DARKCYAN + "\nAccuracy {:.2f}".format(accuracy_value * 100) +
+        sf.Color.END)
+
+    logger.info(
+        sf.Color.BOLD + sf.Color.DARKCYAN + "\nPrecision {:.2f} Recall {:.2f} Fbeta-score {:.2f}".format(
             prec_recall[0] * 100, prec_recall[1] * 100, prec_recall[2] * 100) + sf.Color.END)
-
 
 ##################################################################################################################
