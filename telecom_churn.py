@@ -150,7 +150,8 @@ if __name__ == "__main__":
 
     [input_features, output] = telecom_churn(use_synthetic_data=False, feature_scaling=True)
 
-    baseline_models.models_ensemble(input_features, output, model_names_list, model_parameters_list)
+    baseline_models.models_ensemble(input_features, output, model_names_list, model_parameters_list,
+                                    run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False)
 
     ##################################
 
