@@ -2,6 +2,8 @@
 #  Description: Collection of functions that help modeling
 #
 #########################################################################################################
+from __future__ import division  # Used in matplotlib
+
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.learning_curve import learning_curve
