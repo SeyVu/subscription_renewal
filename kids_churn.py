@@ -19,7 +19,7 @@ from sklearn.preprocessing import StandardScaler
 import pandas as pd
 import numpy as np
 import support_functions as sf
-import baseline_models
+import ensemble_models
 
 import os
 import time
@@ -116,7 +116,7 @@ if __name__ == "__main__":
 
     [input_features, output] = kids_churn(use_synthetic_data=True, feature_scaling=True)
 
-    baseline_models.models_ensemble(input_features, output, model_names_list, model_parameters_list,
+    ensemble_models.majority_voting(input_features, output, model_names_list, model_parameters_list,
                                     run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False)
 
     ##################################
