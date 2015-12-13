@@ -13,6 +13,7 @@ from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 import modeling_tools
@@ -21,25 +22,27 @@ import support_functions as sf
 import os
 import time
 import logging
-import logging.config
 
 #########################################################################################################
 # Global variables
-__author__ = "DataCentric1"
+__author__ = "Harsha Gopianandan"
 __pass__ = 1
 __fail__ = 0
 
 #########################################################################################################
 # Setup logging
-logging.config.fileConfig('logging.conf')
 
-logger = logging.getLogger("debug")
+# TODO: Figure out a centralized way to install/handle logging. Does it really need to be instantiated per file?
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter('[%(filename)s:%(lineno)4s - %(funcName)15s()] %(levelname)8s: %(message)s')
 
 
 #########################################################################################################
-
 # Wrapper function to take input features and output from files with specific problems to solve and
 # call run_models for CV and / or test
+
+
 def run_models_wrapper(x, y, run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False, test_size=0.2,
                        clf_class=RandomForestReg, **kwargs):
 
@@ -54,16 +57,24 @@ def run_models_wrapper(x, y, run_cv_flag=False, num_model_iterations=1, plot_lea
     if run_cv_flag:
         # Run model on cross-validation data and predict test data on trained model
         logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning KFold Cross-Validation / Test" + sf.Color.END)
-        run_model_regression(run_test_only=0, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
-                             num_model_iterations=num_model_iterations, plot_learning_curve=plot_learning_curve,
-                             clf_class=clf_class, **kwargs)
+        y_pred_kfold = run_model_regression(run_test_only=0, x_train=x, y_train=y, x_test=x_test,
+                                                 y_test=y_test, num_model_iterations=num_model_iterations,
+                                                 plot_learning_curve=plot_learning_curve, clf_class=clf_class, **kwargs)
+        logger.debug('KFold Output Dimensions: %s', y_pred_kfold.shape)
+
 
     # Run test - Train model and predict on test data
-    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunnning Only Test" + sf.Color.END)
-    run_model_regression(run_test_only=1, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
-                         num_model_iterations=num_model_iterations, clf_class=clf_class, **kwargs)
+    logger.info(sf.Color.BOLD + sf.Color.GREEN + "\nRunning Only Test" + sf.Color.END)
+    y_pred_test = run_model_regression(run_test_only=1, x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
+                                       num_model_iterations=num_model_iterations, clf_class=clf_class, **kwargs)
+    logger.debug('Test Output Dimensions: %s', y_pred_test.shape)
 
-    return None
+    if run_cv_flag:
+        y_pred_df = pd.DataFrame(y_pred_kfold, columns=['Total points predicted'])
+    else:
+        y_pred_df = pd.DataFrame(y_pred_test, columns=['Total points predicted'])
+
+    return y_pred_df
 
 
 def run_model_regression(run_test_only, x_train, y_train, x_test, y_test, num_model_iterations=1,
@@ -146,20 +157,23 @@ def run_model_regression(run_test_only, x_train, y_train, x_test, y_test, num_mo
         mse_cv /= num_model_iterations
 
         logger.info(sf.Color.BOLD + sf.Color.DARKCYAN +
-                    "\nCV Root Mean squared error {:.2f} Mean squared error {:.2f}".format(rmse_cv,
+                    "\nCV Root Mean Squared Error {:.2f} Mean Squared Error {:.2f}".format(rmse_cv,
                                                                                            mse_cv) + sf.Color.END)
 
     rmse_test /= num_model_iterations
     mse_test /= num_model_iterations
 
     logger.info(sf.Color.BOLD + sf.Color.DARKCYAN +
-                "\nTest Root Mean squared error {:.2f} Mean squared error {:.2f}".format(rmse_test,
+                "\nTest Root Mean Squared Error {:.2f} Mean Squared Error {:.2f}".format(rmse_test,
                                                                                          mse_test) + sf.Color.END)
-
-    return None
-
+    if run_test_only:
+        return y_pred_test
+    else:
+        return y_pred_cv
 
 # Run k-fold cross-validation and predict on test data from last trained model
+
+
 def run_kfold_cv(x_train, y_train, x_test, clf_class, **kwargs):
 
     # Construct a kfolds object from train data
@@ -246,7 +260,7 @@ def run_test(x_train, y_train, x_test, clf_class, **kwargs):
     y_pred_test = clf.predict(x_test)
 
     if hasattr(clf, "feature_importances_"):
-        logger.debug(sf.Color.BOLD + sf.Color.BLUE + "Feature importance" + sf.Color.END)
+        logger.debug(sf.Color.BOLD + sf.Color.BLUE + "Feature Importance" + sf.Color.END)
         # Print importance of the input features and probability for each prediction
         logger.debug(clf.feature_importances_)
 

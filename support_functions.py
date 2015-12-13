@@ -3,13 +3,16 @@
 #
 #########################################################################################################
 import numpy as np
+import pandas as pd
 import random
+import os
 
 #########################################################################################################
-__author__ = 'DataCentric1'
+__author__ = 'Harsha Gopianandan'
 __pass__ = 1
 __fail__ = 0
 
+#########################################################################################################
 
 # Class to specify color and text formatting for prints
 class Color:
@@ -76,3 +79,18 @@ def random_float(low, high):
 # Returns all elements in the list with format 0.2f
 def format_float_0_2f(list_name):
     return "["+", ".join(["%.2f" % x for x in list_name])+"]"
+
+
+# Load Model Data for a CSV
+def load_model_data(data_csv='dummy.csv'):
+    """
+    Reads a CSV file, Returns a Pandas Data Frame
+
+    :param data_csv:
+    :return data:
+    """
+    if os.path.isfile(data_csv):
+        data = pd.read_csv(data_csv, sep=',')
+        return data
+    else:
+        raise ValueError('Input file %s not available', data_csv)
