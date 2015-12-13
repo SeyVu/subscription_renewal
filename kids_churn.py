@@ -117,7 +117,8 @@ if __name__ == "__main__":
     [input_features, output] = kids_churn(use_synthetic_data=True, feature_scaling=True)
 
     ensemble_models.majority_voting(input_features, output, model_names_list, model_parameters_list,
-                                    run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False)
+                                    run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False,
+                                    run_prob_predictions=True, classification_threshold=0.5)
 
     ##################################
 

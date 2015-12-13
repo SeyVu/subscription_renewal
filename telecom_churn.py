@@ -151,7 +151,8 @@ if __name__ == "__main__":
     [input_features, output] = telecom_churn(use_synthetic_data=False, feature_scaling=True)
 
     ensemble_models.majority_voting(input_features, output, model_names_list, model_parameters_list,
-                                    run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False)
+                                    run_cv_flag=True, num_model_iterations=1, plot_learning_curve=False,
+                                    run_prob_predictions=True, classification_threshold=0.45)
 
     ##################################
 
