@@ -16,7 +16,7 @@ import logging
 
 #########################################################################################################
 # Global variables
-__author__ = "Ananth Gopalakrishnan"
+__author__ = "agopalak"
 __pass__ = 1
 __fail__ = 0
 
