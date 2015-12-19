@@ -97,11 +97,11 @@ if __name__ == "__main__":
 
     # Choose models for the ensemble. Uncomment to choose model needed
     estimator_model0 = RandomForest
-    estimator_keywords_model0 = dict(n_estimators=10, verbose=0, criterion='entropy', n_jobs=-1,
-                                     max_features=5, class_weight='auto')
+    estimator_keywords_model0 = dict(n_estimators=100, verbose=0, criterion='gini', n_jobs=-1,
+                                     max_features=5, warm_start='True', oob_score='True', bootstrap='True')
 
     estimator_model1 = GradBoost
-    estimator_keywords_model1 = dict(n_estimators=10, loss='deviance', learning_rate=0.01, verbose=0, max_depth=5,
+    estimator_keywords_model1 = dict(n_estimators=100, loss='deviance', learning_rate=0.01, verbose=0, max_depth=5,
                                      subsample=1.0)
 
     # estimator = SVC
@@ -121,14 +121,5 @@ if __name__ == "__main__":
                                     run_prob_predictions=True, classification_threshold=0.5)
 
     ##################################
-
-    # Neural network
-    # estimator = NeuralNetClassifier
-    # estimator_keywords = dict(layers=[NeuralNetLayer("Rectifier", units=64), NeuralNetLayer("Rectifier", units=32),
-    #                                   NeuralNetLayer("Softmax")],
-    #                           learning_rate=0.001, n_iter=50)
-
-    # Pep8 shows a warning for all other estimators other than RF (probably because RF is the default class in
-    # telecom / kids churn. This is not a valid warning and has been validated
 
     print("Total time: %0.3f" % float(time.time() - start_time))
