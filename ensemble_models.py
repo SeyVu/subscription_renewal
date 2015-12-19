@@ -94,11 +94,10 @@ def majority_voting(input_features, output, model_names, model_parameters, run_c
     return prec_recall
 
 
-# Use predicted probabilities from models instead of classification. Must have return_yprob=True for model to
+# Use predicted probabilities from models instead of classification. Force return_yprob=True for model to
 # return prediction probabilities
 def average_prob(input_features, output, model_names, model_parameters, run_cv_flag=False, num_model_iterations=1,
-                 plot_learning_curve=False, run_prob_predictions=True, return_yprob=True,
-                 classification_threshold=0.5):
+                 plot_learning_curve=False, run_prob_predictions=True, classification_threshold=0.5):
     # Check if a minimum of 3 models are there
     if len(model_names) < 2:
         raise ValueError("Need a minimum of 2 models to do an ensemble")
@@ -118,7 +117,7 @@ def average_prob(input_features, output, model_names, model_parameters, run_cv_f
             baseline_models.run_models_wrapper(x=input_features, y=output, run_cv_flag=run_cv_flag,
                                                num_model_iterations=num_model_iterations,
                                                plot_learning_curve=plot_learning_curve,
-                                               run_prob_predictions=run_prob_predictions, return_yprob=return_yprob,
+                                               run_prob_predictions=run_prob_predictions, return_yprob=True,
                                                classification_threshold=classification_threshold,
                                                clf_class=model_names[model_key], **model_parameters[model_key])
 
