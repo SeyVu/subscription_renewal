@@ -2,29 +2,30 @@
 #  Description: Main file for telecom_churn dataset. Key function is to transform dataset into needed
 #  input_features and output
 #########################################################################################################
-from __future__ import division
+import os
+import time
+import logging
+import logging.config
 
 # Imports for various models (Turn on as needed)
 from sklearn.ensemble import RandomForestClassifier as RandomForest
 # from sklearn.ensemble import BaggingClassifier as Bagging
 # from sklearn.svm import SVC as SVC  # Support vector machines
 # from sklearn.neighbors import KNeighborsClassifier as KNN
-from sklearn.linear_model import LogisticRegression as LogReg
+# from sklearn.linear_model import LogisticRegression as LogReg
 # from sklearn.linear_model import RidgeClassifier as Ridge
 # from sknn.mlp import Classifier as NeuralNetClassifier, Layer as NeuralNetLayer
 from sklearn.ensemble import GradientBoostingClassifier as GradBoost
 
 from sklearn.preprocessing import StandardScaler
 
+# Import Python libs
 import pandas as pd
 import numpy as np
+
+# Import from within project
 import support_functions as sf
 import ensemble_models
-
-import os
-import time
-import logging
-import logging.config
 #########################################################################################################
 # Global variables
 __author__ = "DataCentric1"
@@ -124,6 +125,7 @@ def telecom_churn(use_synthetic_data=False, feature_scaling=True):
 
     return [x, y]
 
+
 ####################################################################################################
 
 if __name__ == "__main__":
@@ -138,15 +140,8 @@ if __name__ == "__main__":
     estimator_keywords_model1 = dict(n_estimators=1000, loss='deviance', learning_rate=0.01, verbose=0, max_depth=5,
                                      subsample=1.0)
 
-    # estimator = SVC
-    # estimator_keywords = dict(C=1, kernel='rbf', class_weight='auto')
-    estimator_model2 = LogReg
-    estimator_keywords_model2 = dict(solver='liblinear')
-
-    # dict model names and parameters always need to have keys model0, model1, model2...
-    model_names_list = dict(model0=estimator_model0, model1=estimator_model1, model2=estimator_model2)
-    model_parameters_list = dict(model0=estimator_keywords_model0, model1=estimator_keywords_model1,
-                                 model2=estimator_keywords_model2)
+    model_names_list = dict(model0=estimator_model0, model1=estimator_model1)
+    model_parameters_list = dict(model0=estimator_keywords_model0, model1=estimator_keywords_model1)
 
     [input_features, output] = telecom_churn(use_synthetic_data=False, feature_scaling=True)
 
@@ -154,7 +149,17 @@ if __name__ == "__main__":
                                     run_cv_flag=True, num_model_iterations=1, plot_learning_curve=False,
                                     run_prob_predictions=True, classification_threshold=0.45)
 
+    # prec_recall = ensemble_models.average_prob(input_features, output, model_names_list, model_parameters_list,
+    #                                            run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False,
+    #                                            run_prob_predictions=True, return_yprob=True,
+    #                                            classification_threshold=classification_threshold)
+
     ##################################
+    # Other model
+    # estimator = SVC
+    # estimator_keywords = dict(C=1, kernel='rbf', class_weight='auto')
+    # estimator_model2 = LogReg
+    # estimator_keywords_model2 = dict(solver='liblinear')
 
     # Neural network
     # estimator = NeuralNetClassifier
@@ -162,18 +167,6 @@ if __name__ == "__main__":
     #                                   NeuralNetLayer("Softmax")],
     #                           learning_rate=0.001, n_iter=50)
 
-    # Pep8 shows a warning for all other estimators other than RF (probably because RF is the default class in
-    # telecom / kids churn. This is not a valid warning and has been validated
-
-    # Choose problem to solve
-
-    # telecom_churn(use_synthetic_data=False, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
-    #               clf_class=estimator, **estimator_keywords)
-
-    # telecom_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=True, feature_scaling=True,
-    #               clf_class=estimator, **estimator_keywords)
-
-    # kids_churn(use_synthetic_data=True, num_model_iterations=1, plot_learning_curve=False, feature_scaling=True,
-    #            clf_class=estimator, **estimator_keywords)
+    ##################################
 
     print("Total time: %0.3f" % float(time.time() - start_time))
