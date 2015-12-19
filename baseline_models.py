@@ -122,6 +122,9 @@ def run_model(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_lea
     mean_recall = 0
     mean_fbeta_score = 0
 
+    if return_yprob:
+        num_model_iterations = 1  # for probabilities returned, just run 1 iteration
+
     for _ in range(num_model_iterations):
         if cv_0_test_1:  # test
             y_predicted = run_test(x_train=x_train, y_train=y_train, x_test=x_test,
@@ -132,49 +135,53 @@ def run_model(cv_0_test_1, x, y, num_model_iterations=1, test_size=0.2, plot_lea
             y_predicted = run_cv(x=x, y=y, run_prob_predictions=run_prob_predictions, return_yprob=return_yprob,
                                  classification_threshold=classification_threshold, clf_class=clf_class, **kwargs)
 
+        # Only do accuracy / precision and recall if actual classified values are returned and not probabilities
+        if not return_yprob:
+            # Accuracy
+            mean_accuracy += accuracy(y_actual, y_predicted)
+
+            mean_correct_positive_prediction += correct_positive_prediction
+            mean_correct_negative_prediction += correct_negative_prediction
+            mean_incorrect_positive_prediction += incorrect_positive_prediction
+            mean_incorrect_negative_prediction += incorrect_negative_prediction
+
+            # Precision recall
+            prec_recall = precision_recall_fscore_support(y_true=y_actual, y_pred=y_predicted, beta=beta,
+                                                          average='binary')
+
+            mean_precision += prec_recall[0]
+            mean_recall += prec_recall[1]
+            mean_fbeta_score += prec_recall[2]
+
+    # Only do accuracy / precision and recall if actual classified values are returned and not probabilities
+    if not return_yprob:
         # Accuracy
-
-        mean_accuracy += accuracy(y_actual, y_predicted)
-
-        mean_correct_positive_prediction += correct_positive_prediction
-        mean_correct_negative_prediction += correct_negative_prediction
-        mean_incorrect_positive_prediction += incorrect_positive_prediction
-        mean_incorrect_negative_prediction += incorrect_negative_prediction
+        mean_accuracy /= num_model_iterations
+        mean_correct_positive_prediction /= num_model_iterations
+        mean_correct_negative_prediction /= num_model_iterations
+        mean_incorrect_positive_prediction /= num_model_iterations
+        mean_incorrect_negative_prediction /= num_model_iterations
 
         # Precision recall
-        prec_recall = precision_recall_fscore_support(y_true=y_actual, y_pred=y_predicted, beta=beta, average='binary')
+        mean_precision /= num_model_iterations
+        mean_recall /= num_model_iterations
+        mean_fbeta_score /= num_model_iterations
 
-        mean_precision += prec_recall[0]
-        mean_recall += prec_recall[1]
-        mean_fbeta_score += prec_recall[2]
+        # Accuracy
+        logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nAccuracy {:.2f}".format(mean_accuracy * 100) + sf.Color.END)
 
-    # Accuracy
-    mean_accuracy /= num_model_iterations
-    mean_correct_positive_prediction /= num_model_iterations
-    mean_correct_negative_prediction /= num_model_iterations
-    mean_incorrect_positive_prediction /= num_model_iterations
-    mean_incorrect_negative_prediction /= num_model_iterations
+        logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nCorrect positive prediction {:.2f}".format(
+            mean_correct_positive_prediction) + sf.Color.END)
+        logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nCorrect negative prediction {:.2f}".format(
+            mean_correct_negative_prediction) + sf.Color.END)
+        logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nIncorrect positive prediction {:.2f}".format(
+            mean_incorrect_positive_prediction) + sf.Color.END)
+        logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nIncorrect negative prediction {:.2f}".format(
+            mean_incorrect_negative_prediction) + sf.Color.END)
 
-    # Precision recall
-    mean_precision /= num_model_iterations
-    mean_recall /= num_model_iterations
-    mean_fbeta_score /= num_model_iterations
-
-    # Accuracy
-    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nAccuracy {:.2f}".format(mean_accuracy * 100) + sf.Color.END)
-
-    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nCorrect positive prediction {:.2f}".format(
-        mean_correct_positive_prediction) + sf.Color.END)
-    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nCorrect negative prediction {:.2f}".format(
-        mean_correct_negative_prediction) + sf.Color.END)
-    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nIncorrect positive prediction {:.2f}".format(
-        mean_incorrect_positive_prediction) + sf.Color.END)
-    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nIncorrect negative prediction {:.2f}".format(
-        mean_incorrect_negative_prediction) + sf.Color.END)
-
-    # Precision recall
-    logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nPrecision {:.2f} Recall {:.2f} Fbeta-score {:.2f}".format(
-        mean_precision * 100, mean_recall * 100, mean_fbeta_score * 100) + sf.Color.END)
+        # Precision recall
+        logger.info(sf.Color.BOLD + sf.Color.DARKCYAN + "\nPrecision {:.2f} Recall {:.2f} Fbeta-score {:.2f}".format(
+            mean_precision * 100, mean_recall * 100, mean_fbeta_score * 100) + sf.Color.END)
 
     # compare probability predictions of the model
     if run_prob_predictions:
@@ -291,7 +298,8 @@ def run_cv(x, y, run_prob_predictions=False, return_yprob=False, classification_
         raise ValueError("Invalid combination - cannot return yprob when run_prob_predictions is False!")
 
     if return_yprob:
-        return y_prob
+        # Column 1 has the predicted y_prob for class "1"
+        return y_prob[:, 1]
     else:
         return y_pred
 
@@ -349,11 +357,11 @@ def run_test(x_train, y_train, x_test, run_prob_predictions=False, return_yprob=
 
     if run_prob_predictions:
         for idx, _ in np.ndindex(y_prob.shape):
+            # Column 1 has the predicted y_prob for class "1"
             if y_prob[idx, 1] < classification_threshold:
                 y_pred[idx] = 0
             else:
                 y_pred[idx] = 1
-                # print y_prob
 
     y_pred = np.array(y_pred)
 
@@ -361,7 +369,8 @@ def run_test(x_train, y_train, x_test, run_prob_predictions=False, return_yprob=
         raise ValueError("Invalid combination - cannot return yprob when run_prob_predictions is False!")
 
     if return_yprob:
-        return y_prob
+        # Column 1 has the predicted y_prob for class "1"
+        return y_prob[:, 1]
     else:
         return y_pred
 
