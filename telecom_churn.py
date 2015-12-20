@@ -26,6 +26,7 @@ import numpy as np
 # Import from within project
 import support_functions as sf
 import ensemble_models
+import visualization
 #########################################################################################################
 # Global variables
 __author__ = "DataCentric1"
@@ -131,6 +132,9 @@ def telecom_churn(use_synthetic_data=False, feature_scaling=True):
 if __name__ == "__main__":
     start_time = time.time()
 
+    # Create precision_recall-curve?
+    prec_recall_plot = True
+
     # Choose models for the ensemble. Uncomment to choose model needed
     estimator_model0 = RandomForest
     estimator_keywords_model0 = dict(n_estimators=1000, verbose=0, criterion='entropy', n_jobs=-1,
@@ -145,14 +149,43 @@ if __name__ == "__main__":
 
     [input_features, output] = telecom_churn(use_synthetic_data=False, feature_scaling=True)
 
-    ensemble_models.majority_voting(input_features, output, model_names_list, model_parameters_list,
-                                    run_cv_flag=True, num_model_iterations=1, plot_learning_curve=False,
-                                    run_prob_predictions=True, classification_threshold=0.45)
+    # ensemble_models.majority_voting(input_features, output, model_names_list, model_parameters_list,
+    #                                 run_cv_flag=True, num_model_iterations=1, plot_learning_curve=False,
+    #                                 run_prob_predictions=True, classification_threshold=0.45)
 
-    # prec_recall = ensemble_models.average_prob(input_features, output, model_names_list, model_parameters_list,
-    #                                            run_cv_flag=False, num_model_iterations=1, plot_learning_curve=False,
-    #                                            run_prob_predictions=True, return_yprob=True,
-    #                                            classification_threshold=classification_threshold)
+    if prec_recall_plot:
+        # Divide 0 and 1.0 by 20 equally distributed values
+        num_of_thresholds = np.linspace(0, 1.0, 20)
+
+        threshold = np.zeros((len(num_of_thresholds), 1), dtype=float)
+
+        precision = np.zeros((len(num_of_thresholds), 1), dtype=float)
+
+        recall = np.zeros((len(num_of_thresholds), 1), dtype=float)
+
+        fbeta_score = np.zeros((len(num_of_thresholds), 1), dtype=float)
+
+        idx = 0
+
+        for classification_threshold in num_of_thresholds:
+            prec_recall = ensemble_models.average_prob(input_features, output, model_names_list, model_parameters_list,
+                                                       run_cv_flag=False, num_model_iterations=1,
+                                                       plot_learning_curve=False, run_prob_predictions=True,
+                                                       classification_threshold=classification_threshold)
+
+            threshold[idx] = classification_threshold
+            precision[idx] = prec_recall[0]
+            recall[idx] = prec_recall[1]
+            fbeta_score[idx] = prec_recall[2]
+
+            idx += 1
+
+        # Call function for plotting
+        vis = visualization.Plots()
+        vis.basic_2d_plot(x=threshold, y=(precision, recall, fbeta_score),
+                          legends=("Precision", "Recall", "Fbeta_score (beta=2)"),
+                          title="Precision Recall Curve", xaxis_label="Threshold",
+                          yaxis_label="Score %")
 
     ##################################
     # Other model
