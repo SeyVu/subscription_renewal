@@ -154,8 +154,9 @@ if __name__ == "__main__":
     #                                 run_prob_predictions=True, classification_threshold=0.45)
 
     if prec_recall_plot:
-        # Divide 0 and 1.0 by 20 equally distributed values
-        num_of_thresholds = np.linspace(0, 1.0, 20)
+        # Divide 0 and 0.9 by 21 equally distributed values (including both).
+        # Ignoring 1.0 as it has Fbeta_score of 0
+        num_of_thresholds = np.linspace(0, 0.9, 21)
 
         threshold = np.zeros((len(num_of_thresholds), 1), dtype=float)
 
@@ -174,9 +175,9 @@ if __name__ == "__main__":
                                                        classification_threshold=classification_threshold)
 
             threshold[idx] = classification_threshold
-            precision[idx] = prec_recall[0]
-            recall[idx] = prec_recall[1]
-            fbeta_score[idx] = prec_recall[2]
+            precision[idx] = round(prec_recall[0] * 100)  # Convert to %
+            recall[idx] = round(prec_recall[1] * 100)
+            fbeta_score[idx] = round(prec_recall[2] * 100)
 
             idx += 1
 
@@ -184,7 +185,7 @@ if __name__ == "__main__":
         vis = visualization.Plots()
         vis.basic_2d_plot(x=threshold, y=(precision, recall, fbeta_score),
                           legends=("Precision", "Recall", "Fbeta_score (beta=2)"),
-                          title="Precision Recall Curve", xaxis_label="Threshold",
+                          title="Precision Recall Curve", xaxis_label="Classification Threshold",
                           yaxis_label="Score %")
 
     ##################################
